@@ -13,7 +13,7 @@ public class AccountBalanceController {
     @GetMapping("/{accountId}")
     public AccountBalance getBalance(@PathVariable String accountId) {
         // Dummy implementation
-        return new AccountBalance(accountId, new BigDecimal("1000.00"), "USD");
+        return new AccountBalance(accountId, new BigDecimal("10000.00"), "USD");
     }
 
     // Dummy DTO
