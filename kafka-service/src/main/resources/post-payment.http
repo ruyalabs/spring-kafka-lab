@@ -4,17 +4,7 @@ Content-Type: application/json
 
 {
   "amount": 200.50,
-  "currency": "USD",
+  "currency": "CHF",
   "description": "Payment for services"
 }
 
-### Send a payment request with ID
-POST http://localhost:8080/api/payments
-Content-Type: application/json
-
-{
-  "id": "custom-payment-id-123",
-  "amount": 200.75,
-  "currency": "EUR",
-  "description": "Payment with custom ID"
-}

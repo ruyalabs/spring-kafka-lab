@@ -19,7 +19,6 @@ public class PaymentRequestProcessorService {
 
     private final PaymentRequestProducer paymentRequestProducer;
     private final AccountBalanceClient accountBalanceClient;
-    private final BookingClient bookingClient;
 
     /**
      * Process a payment request
@@ -52,24 +51,6 @@ public class PaymentRequestProcessorService {
             log.error("Error checking account balance: {}", e.getMessage(), e);
             // For demonstration purposes, we'll continue even if balance check fails
         }
-
-        // Create a booking - using dummy data for demonstration
-        try {
-            BookingClient.BookingRequest bookingRequest = new BookingClient.BookingRequest(
-                accountId, 
-                "Payment: " + paymentDto.getDescription(),
-                1
-            );
-
-            BookingClient.BookingResponse bookingResponse = bookingClient.createBooking(bookingRequest);
-            log.info("Created booking: {}", bookingResponse);
-        } catch (Exception e) {
-            log.error("Error creating booking: {}", e.getMessage(), e);
-            // For demonstration purposes, we'll continue even if booking creation fails
-        }
-
-        // Business logic - payment processing
-        log.info("Payment processed successfully with ID: {}", paymentDto.getId());
 
         // Send the payment request to Kafka asynchronously
         // Don't wait for the result - fully non-blocking
