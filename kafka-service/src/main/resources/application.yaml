@@ -49,3 +49,10 @@ spring:
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer # Or your custom deserializer
     listener:
       ack-mode: MANUAL_IMMEDIATE # Acknowledge messages manually right after processing
+
+# Service URLs for external services
+services:
+  account-balance:
+    url: http://localhost:8081
+  booking:
+    url: http://localhost:8082
