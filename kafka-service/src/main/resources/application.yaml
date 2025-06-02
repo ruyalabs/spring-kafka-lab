@@ -1,0 +1,43 @@
+spring:
+  kafka:
+    bootstrap-servers: localhost:29092
+
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+      # Wait for all in-sync replicas to acknowledge the message
+      # Provides the highest level of message durability
+      acks: all
+
+      # Number of retry attempts for transient errors (e.g., leader not available)
+      retries: 10
+
+      properties:
+        # Total time the producer will wait for a message to be acknowledged,
+        # including time spent on retries and time spent waiting for broker response.
+        # If exceeded, the send will fail with a timeout.
+        delivery.timeout.ms: 10000  # in milliseconds
+
+        # Maximum time the producer waits for a response from the broker.
+        # Must be less than or equal to delivery.timeout.ms.
+        request.timeout.ms: 5000  # in milliseconds
+
+        # Maximum time the producer will block on send() and metadata fetch if buffer is full.
+        # Prevents indefinite blocking.
+        max.block.ms: 5000  # in milliseconds
+
+        # Maximum number of unacknowledged requests per connection.
+        # Set to 1 to preserve message order on retries.
+        max.in.flight.requests.per.connection: 1
+
+        # Enables idempotent producer to ensure exactly-once delivery semantics
+        # on the producer side (avoids duplicates on retry).
+        # Requires:
+        #   acks = all
+        #   retries > 0
+        #   max.in.flight.requests.per.connection <= 5
+        enable.idempotence: true
+
+        # Time to wait between retry attempts after a failed send.
+        retry.backoff.ms: 1000  # in milliseconds
