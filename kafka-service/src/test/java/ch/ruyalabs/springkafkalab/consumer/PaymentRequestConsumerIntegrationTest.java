@@ -11,10 +11,12 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
@@ -52,14 +54,28 @@ public class PaymentRequestConsumerIntegrationTest {
     @Value("${spring.kafka.bootstrap-servers}")
     private String bootstrapServers;
 
-    @MockBean
+    @Autowired
     private AccountBalanceClient accountBalanceClient;
 
-    @MockBean
+    @Autowired
     private BookingClient bookingClient;
 
     @Autowired
     private PaymentRequestConsumer consumer;
+
+    @TestConfiguration
+    static class TestConfig {
+
+        @Bean
+        public AccountBalanceClient accountBalanceClient() {
+            return Mockito.mock(AccountBalanceClient.class);
+        }
+
+        @Bean
+        public BookingClient bookingClient() {
+            return Mockito.mock(BookingClient.class);
+        }
+    }
 
     private KafkaTemplate<String, PaymentDto> kafkaTemplate;
 
