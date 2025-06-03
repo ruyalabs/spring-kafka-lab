@@ -1,48 +1,23 @@
+# Common configuration for all profiles
 spring:
-  kafka:
-    bootstrap-servers: localhost:29092
+  profiles:
+    active: dev  # Default profile is dev
 
+# Kafka configuration common for all profiles
+  kafka:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-
-      # Wait for all in-sync replicas to acknowledge the message
-      # Provides the highest level of message durability
       acks: all
-
-      # Number of retry attempts for transient errors (e.g., leader not available)
       retries: 10
-
       properties:
-        # Total time the producer will wait for a message to be acknowledged,
-        # including time spent on retries and time spent waiting for broker response.
-        # If exceeded, the send will fail with a timeout.
         delivery.timeout.ms: 10000  # in milliseconds
-
-        # Maximum time the producer waits for a response from the broker.
-        # Must be less than or equal to delivery.timeout.ms.
         request.timeout.ms: 5000  # in milliseconds
-
-        # Maximum time the producer will block on send() and metadata fetch if buffer is full.
-        # Prevents indefinite blocking.
         max.block.ms: 5000  # in milliseconds
-
-        # Maximum number of unacknowledged requests per connection.
-        # Set to 1 to preserve message order on retries.
         max.in.flight.requests.per.connection: 1
-
-        # Enables idempotent producer to ensure exactly-once delivery semantics
-        # on the producer side (avoids duplicates on retry).
-        # Requires:
-        #   acks = all
-        #   retries > 0
-        #   max.in.flight.requests.per.connection <= 5
         enable.idempotence: true
-
-        # Time to wait between retry attempts after a failed send.
         retry.backoff.ms: 1000  # in milliseconds
     consumer:
-      group-id: payment-request-consumer-group
       auto-offset-reset: earliest # Process from the beginning if no offset is found
       enable-auto-commit: false   # Disable auto-commit for manual control
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
@@ -58,11 +33,66 @@ spring:
         max-interval: 60s       # Maximum backoff interval
         max-attempts: 0         # 0 means retry indefinitely
 
-# Service URLs for external services
+# Topic configuration common for all profiles
+payment:
+  request:
+    topic: payment-request
+
+---
+# Development profile configuration
+spring:
+  config:
+    activate:
+      on-profile: dev
+  kafka:
+    bootstrap-servers: localhost:29092
+    consumer:
+      group-id: payment-request-consumer-group-dev
+
+# Service URLs for development environment
 services:
   account-balance:
     url: http://localhost:8081
   booking:
     url: http://localhost:8082
 
-# Kafka consumer retry configuration has been moved to spring.kafka.listener.retry section above
+---
+# Test profile configuration
+spring:
+  config:
+    activate:
+      on-profile: test
+  kafka:
+    bootstrap-servers: ${spring.embedded.kafka.brokers}
+    consumer:
+      group-id: payment-request-consumer-group-test
+
+# Test-specific topic configuration
+payment:
+  request:
+    topic: payment-request-test
+
+# Service URLs for test environment
+services:
+  account-balance:
+    url: http://localhost:8081
+  booking:
+    url: http://localhost:8082
+
+---
+# Production profile configuration
+spring:
+  config:
+    activate:
+      on-profile: prod
+  kafka:
+    bootstrap-servers: kafka-broker:9092
+    consumer:
+      group-id: payment-request-consumer-group-prod
+
+# Service URLs for production environment
+services:
+  account-balance:
+    url: http://account-balance-service:8081
+  booking:
+    url: http://booking-service:8082
