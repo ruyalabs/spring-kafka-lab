@@ -52,6 +52,7 @@ public class KafkaConsumerConfig {
         JsonDeserializer<PaymentDto> jsonDeserializer = new JsonDeserializer<>(PaymentDto.class);
         jsonDeserializer.setRemoveTypeHeaders(false);
         jsonDeserializer.addTrustedPackages("ch.ruyalabs.springkafkalab.dto");
+        jsonDeserializer.setUseTypeHeaders(false);
 
         return new DefaultKafkaConsumerFactory<>(
             props, 
