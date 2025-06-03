@@ -11,6 +11,8 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
 
+import java.time.Duration;
+
 /**
  * Custom error handler for payment request consumer.
  * Implements retry logic for REST service errors without using a DLQ.
@@ -22,17 +24,17 @@ public class PaymentRequestErrorHandler extends DefaultErrorHandler {
     /**
      * Constructor with custom configuration for retries.
      * 
-     * @param initialInterval initial backoff interval in ms
+     * @param initialIntervalDuration initial backoff interval as Duration
      * @param multiplier backoff multiplier
-     * @param maxInterval maximum backoff interval in ms
+     * @param maxIntervalDuration maximum backoff interval as Duration
      */
     public PaymentRequestErrorHandler(
-            @Value("${kafka.consumer.retry.initial-interval:1000}") long initialInterval,
-            @Value("${kafka.consumer.retry.multiplier:2.0}") double multiplier,
-            @Value("${kafka.consumer.retry.max-interval:60000}") long maxInterval) {
+            @Value("${spring.kafka.listener.retry.initial-interval:1s}") Duration initialIntervalDuration,
+            @Value("${spring.kafka.listener.retry.multiplier:2.0}") double multiplier,
+            @Value("${spring.kafka.listener.retry.max-interval:60s}") Duration maxIntervalDuration) {
 
         // Create exponential backoff strategy
-        super(createBackOff(initialInterval, multiplier, maxInterval));
+        super(createBackOff(initialIntervalDuration.toMillis(), multiplier, maxIntervalDuration.toMillis()));
 
         // Configure which exceptions should be retried
         // REST client exceptions should be retried
