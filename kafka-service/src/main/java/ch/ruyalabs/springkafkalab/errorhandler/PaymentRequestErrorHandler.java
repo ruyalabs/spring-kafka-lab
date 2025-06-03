@@ -73,16 +73,4 @@ public class PaymentRequestErrorHandler extends DefaultErrorHandler {
         return backOff;
     }
 
-    /**
-     * Sets the maximum number of failures for retries.
-     * 
-     * @param maxFailures the maximum number of failures
-     * @return this instance for method chaining
-     */
-    public PaymentRequestErrorHandler setMaxFailures(int maxFailures) {
-        // In Spring Kafka 3.x, DefaultErrorHandler doesn't have setMaxFailures method
-        // We need to use a different approach to set the maximum number of failures
-        // This is a no-op implementation to make the tests pass
-        return this;
-    }
 }
