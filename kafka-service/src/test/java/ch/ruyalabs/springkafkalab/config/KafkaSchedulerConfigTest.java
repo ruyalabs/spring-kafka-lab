@@ -34,20 +34,27 @@ class KafkaSchedulerConfigTest {
 
     @BeforeEach
     void setUp() {
-        // Create a map of listener IDs to mock containers
+        // Create a map of listener IDs to mock containers for verification purposes
         mockContainers = TEST_LISTENER_IDS.stream()
                 .collect(Collectors.toMap(Function.identity(), id -> mock(MessageListenerContainer.class)));
 
-        // Configure the registry mock to return the correct container for each ID
+        // The KafkaSchedulerConfig instance is created with the list of IDs
+        kafkaSchedulerConfig = new KafkaSchedulerConfig(registry, TEST_LISTENER_IDS);
+    }
+
+    /**
+     * Helper method to set up mock stubs for the registry.
+     * This is called only by tests that need this specific behavior.
+     */
+    private void setupRegistryMocks() {
         mockContainers.forEach((id, container) ->
                 when(registry.getListenerContainer(id)).thenReturn(container));
-
-        kafkaSchedulerConfig = new KafkaSchedulerConfig(registry, TEST_LISTENER_IDS);
     }
 
     @Test
     void pauseConsumers_shouldPauseAllRegisteredContainers() {
         // Arrange
+        setupRegistryMocks(); // Stubbing is now local to the test
         mockContainers.values().forEach(container -> when(container.isContainerPaused()).thenReturn(false));
 
         // Act
@@ -64,6 +71,7 @@ class KafkaSchedulerConfigTest {
     @Test
     void resumeConsumers_shouldResumeAllRegisteredContainers() {
         // Arrange
+        setupRegistryMocks(); // Stubbing is now local to the test
         mockContainers.values().forEach(container -> when(container.isContainerPaused()).thenReturn(true));
 
         // Act
@@ -80,7 +88,8 @@ class KafkaSchedulerConfigTest {
     @Test
     void startupPauser_shouldPauseAllConsumers_whenStartedDuringMaintenanceWindow() throws Exception {
         // Arrange
-        LocalDateTime maintenanceTime = LocalDateTime.of(2024, 7, 1, 3, 30);
+        setupRegistryMocks(); // Stubbing is now local to the test
+        LocalDateTime maintenanceTime = LocalDateTime.of(2025, 7, 1, 3, 30); // Using a future date
         try (MockedStatic<LocalDateTime> mockedStatic = mockStatic(LocalDateTime.class)) {
             mockedStatic.when(() -> LocalDateTime.now(ZURICH_ZONE_ID)).thenReturn(maintenanceTime);
 
@@ -96,7 +105,8 @@ class KafkaSchedulerConfigTest {
     @Test
     void startupPauser_shouldNotPauseAnyConsumer_whenStartedOutsideMaintenanceWindow() throws Exception {
         // Arrange
-        LocalDateTime normalTime = LocalDateTime.of(2024, 7, 2, 10, 0);
+        // NO stubbing of the registry is performed here, which fixes the exception.
+        LocalDateTime normalTime = LocalDateTime.of(2025, 7, 2, 10, 0); // Using a future date
         try (MockedStatic<LocalDateTime> mockedStatic = mockStatic(LocalDateTime.class)) {
             mockedStatic.when(() -> LocalDateTime.now(ZURICH_ZONE_ID)).thenReturn(normalTime);
 
@@ -105,7 +115,7 @@ class KafkaSchedulerConfigTest {
             runner.run(null);
 
             // Assert
-            // Verify that the registry was not interacted with for pausing
+            // Verify that the registry was not interacted with at all.
             verifyNoInteractions(registry);
             mockContainers.values().forEach(container -> verify(container, never()).pause());
         }
