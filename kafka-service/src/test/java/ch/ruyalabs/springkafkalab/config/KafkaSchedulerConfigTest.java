@@ -1,8 +1,8 @@
 package ch.ruyalabs.springkafkalab.config;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -12,65 +12,75 @@ import org.springframework.kafka.listener.MessageListenerContainer;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class KafkaSchedulerConfigTest {
 
-    private static final String PAYMENT_LISTENER_ID = "paymentRequestListener";
+    private static final List<String> TEST_LISTENER_IDS = List.of("paymentRequestListener", "anotherListenerId");
     private static final ZoneId ZURICH_ZONE_ID = ZoneId.of("Europe/Zurich");
 
     @Mock
     private KafkaListenerEndpointRegistry registry;
 
-    @Mock
-    private MessageListenerContainer container;
+    private Map<String, MessageListenerContainer> mockContainers;
 
-    @InjectMocks
     private KafkaSchedulerConfig kafkaSchedulerConfig;
 
-    // The @BeforeEach setUp method is no longer needed.
+    @BeforeEach
+    void setUp() {
+        // Create a map of listener IDs to mock containers
+        mockContainers = TEST_LISTENER_IDS.stream()
+                .collect(Collectors.toMap(Function.identity(), id -> mock(MessageListenerContainer.class)));
 
-    @Test
-    void pauseConsumer_shouldPauseTheCorrectContainer() {
-        // Arrange
-        // Stubbing is now moved inside the test that needs it
-        when(registry.getListenerContainer(PAYMENT_LISTENER_ID)).thenReturn(container);
-        when(container.isContainerPaused()).thenReturn(false);
+        // Configure the registry mock to return the correct container for each ID
+        mockContainers.forEach((id, container) ->
+                when(registry.getListenerContainer(id)).thenReturn(container));
 
-        // Act
-        kafkaSchedulerConfig.pauseConsumer();
-
-        // Assert
-        verify(registry).getListenerContainer(PAYMENT_LISTENER_ID);
-        verify(container).pause();
-        verify(container, never()).resume();
+        kafkaSchedulerConfig = new KafkaSchedulerConfig(registry, TEST_LISTENER_IDS);
     }
 
     @Test
-    void resumeConsumer_shouldResumeTheCorrectContainer() {
+    void pauseConsumers_shouldPauseAllRegisteredContainers() {
         // Arrange
-        // Stubbing is now moved inside the test that needs it
-        when(registry.getListenerContainer(PAYMENT_LISTENER_ID)).thenReturn(container);
-        when(container.isContainerPaused()).thenReturn(true);
+        mockContainers.values().forEach(container -> when(container.isContainerPaused()).thenReturn(false));
 
         // Act
-        kafkaSchedulerConfig.resumeConsumer();
+        kafkaSchedulerConfig.pauseConsumers();
 
         // Assert
-        verify(registry).getListenerContainer(PAYMENT_LISTENER_ID);
-        verify(container).resume();
-        verify(container, never()).pause();
+        verify(registry, times(TEST_LISTENER_IDS.size())).getListenerContainer(anyString());
+        mockContainers.values().forEach(container -> {
+            verify(container).pause();
+            verify(container, never()).resume();
+        });
     }
 
     @Test
-    void startupPauser_shouldPauseConsumer_whenStartedDuringMaintenanceWindow() throws Exception {
+    void resumeConsumers_shouldResumeAllRegisteredContainers() {
+        // Arrange
+        mockContainers.values().forEach(container -> when(container.isContainerPaused()).thenReturn(true));
+
+        // Act
+        kafkaSchedulerConfig.resumeConsumers();
+
+        // Assert
+        verify(registry, times(TEST_LISTENER_IDS.size())).getListenerContainer(anyString());
+        mockContainers.values().forEach(container -> {
+            verify(container).resume();
+            verify(container, never()).pause();
+        });
+    }
+
+    @Test
+    void startupPauser_shouldPauseAllConsumers_whenStartedDuringMaintenanceWindow() throws Exception {
         // Arrange
         LocalDateTime maintenanceTime = LocalDateTime.of(2024, 7, 1, 3, 30);
-        // Stubbing is now moved inside the test that needs it
-        when(registry.getListenerContainer(PAYMENT_LISTENER_ID)).thenReturn(container);
-
         try (MockedStatic<LocalDateTime> mockedStatic = mockStatic(LocalDateTime.class)) {
             mockedStatic.when(() -> LocalDateTime.now(ZURICH_ZONE_ID)).thenReturn(maintenanceTime);
 
@@ -79,16 +89,14 @@ class KafkaSchedulerConfigTest {
             runner.run(null);
 
             // Assert
-            verify(container).pause();
+            mockContainers.values().forEach(container -> verify(container).pause());
         }
     }
 
     @Test
-    void startupPauser_shouldNotPauseConsumer_whenStartedOutsideMaintenanceWindow() throws Exception {
+    void startupPauser_shouldNotPauseAnyConsumer_whenStartedOutsideMaintenanceWindow() throws Exception {
         // Arrange
         LocalDateTime normalTime = LocalDateTime.of(2024, 7, 2, 10, 0);
-        // NO stubbing is needed here, as getListenerContainer is never called.
-
         try (MockedStatic<LocalDateTime> mockedStatic = mockStatic(LocalDateTime.class)) {
             mockedStatic.when(() -> LocalDateTime.now(ZURICH_ZONE_ID)).thenReturn(normalTime);
 
@@ -97,9 +105,9 @@ class KafkaSchedulerConfigTest {
             runner.run(null);
 
             // Assert
-            // Verify that the registry was never interacted with.
+            // Verify that the registry was not interacted with for pausing
             verifyNoInteractions(registry);
-            verify(container, never()).pause();
+            mockContainers.values().forEach(container -> verify(container, never()).pause());
         }
     }
 }

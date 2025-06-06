@@ -1,3 +1,14 @@
+# src/main/resources/application.yaml
+
+# ... other configurations
+
+# Kafka scheduler configuration
+kafka:
+  scheduler:
+    listener-ids:
+      - paymentRequestListener
+      # - another-consumer-listener-id  # Add new listener IDs here
+
 # Common configuration for all profiles
 spring:
   profiles:
