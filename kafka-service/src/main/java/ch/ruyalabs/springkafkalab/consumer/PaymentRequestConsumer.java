@@ -51,6 +51,7 @@ public class PaymentRequestConsumer {
      * @param acknowledgment the acknowledgment callback
      */
     @KafkaListener(
+        id = "paymentRequestListener",
         topics = "${payment.request.topic:payment-request}",
         groupId = "${spring.kafka.consumer.group-id}",
         containerFactory = "paymentKafkaListenerContainerFactory"
