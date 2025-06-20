@@ -1,0 +1,89 @@
+openapi: 3.1.0
+
+info:
+  title: Kafka Service API
+  version: 1.0.0
+  description: API specification for Kafka Service
+
+components:
+  schemas:
+    PaymentDto:
+      type: object
+      required:
+        - id
+        - amount
+        - currency
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the payment
+        amount:
+          type: number
+          description: Payment amount
+        currency:
+          type: string
+          description: Currency code for the payment
+        description:
+          type: string
+          description: Description of the payment
+
+    SuccessResponseDto:
+      type: object
+      required:
+        - id
+        - status
+        - timestamp
+      properties:
+        id:
+          type: string
+          description: Original payment ID from the request
+        status:
+          type: string
+          description: Success status
+          example: "SUCCESS"
+        message:
+          type: string
+          description: Success message
+          example: "Payment processed successfully"
+        timestamp:
+          type: string
+          format: date-time
+          description: Response timestamp
+        transactionId:
+          type: string
+          description: Generated transaction ID for the successful payment
+
+    ErrorResponseDto:
+      type: object
+      required:
+        - id
+        - errorCode
+        - errorMessage
+        - timestamp
+      properties:
+        id:
+          type: string
+          description: Original payment ID from the request
+        errorCode:
+          type: string
+          description: Error code categorizing the type of error
+          enum:
+            - VALIDATION_FAILED
+            - INSUFFICIENT_FUNDS
+            - ACCOUNT_NOT_FOUND
+            - CURRENCY_MISMATCH
+            - BOOKING_FAILED
+            - BOOKING_TIMEOUT
+            - TECHNICAL_ERROR
+            - DESERIALIZATION_ERROR
+        errorMessage:
+          type: string
+          description: Human-readable error message
+        timestamp:
+          type: string
+          format: date-time
+          description: Error timestamp
+        retryable:
+          type: boolean
+          description: Indicates if the error is retryable
+          default: false

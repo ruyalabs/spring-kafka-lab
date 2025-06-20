@@ -1,0 +1,213 @@
+### Sample Payment Requests for Testing
+
+### 1. Valid Payment Request - USD
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "id": "payment-001",
+  "amount": 100.50,
+  "currency": "USD",
+  "description": "Test payment for order #12345"
+}
+
+### 2. Valid Payment Request - EUR
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "id": "payment-002",
+  "amount": 250.75,
+  "currency": "EUR",
+  "description": "Hotel booking payment"
+}
+
+### 3. Valid Payment Request - Large Amount
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "id": "payment-003",
+  "amount": 9999.99,
+  "currency": "USD",
+  "description": "High-value transaction test"
+}
+
+### 4. Valid Payment Request - Small Amount
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "id": "payment-004",
+  "amount": 0.01,
+  "currency": "USD",
+  "description": "Minimum amount test"
+}
+
+### 5. Valid Payment Request - Different Currency (GBP)
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "id": "payment-005",
+  "amount": 75.25,
+  "currency": "GBP",
+  "description": "British Pound payment test"
+}
+
+### 6. Valid Payment Request - Minimal Fields
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "id": "payment-006",
+  "amount": 50.00,
+  "currency": "USD",
+  "description": "Basic payment test"
+}
+
+### 7. Edge Case - Zero Amount (might be invalid)
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "id": "payment-007",
+  "amount": 0.00,
+  "currency": "USD",
+  "description": "Zero amount test"
+}
+
+### 8. Edge Case - Negative Amount (should be invalid)
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "id": "payment-008",
+  "amount": -50.00,
+  "currency": "USD",
+  "description": "Negative amount test"
+}
+
+### 9. Edge Case - Missing ID
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "amount": 100.00,
+  "currency": "USD",
+  "description": "Payment without ID"
+}
+
+### 10. Edge Case - Missing Amount
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "id": "payment-010",
+  "currency": "USD",
+  "description": "Payment without amount"
+}
+
+### 11. Edge Case - Missing Currency
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "id": "payment-011",
+  "amount": 100.00,
+  "description": "Payment without currency"
+}
+
+### 12. Edge Case - Empty Description
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "id": "payment-012",
+  "amount": 100.00,
+  "currency": "USD",
+  "description": ""
+}
+
+### 13. Edge Case - Null Values
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "id": null,
+  "amount": null,
+  "currency": null,
+  "description": null
+}
+
+### 14. Edge Case - Invalid Currency Code
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "id": "payment-014",
+  "amount": 100.00,
+  "currency": "INVALID",
+  "description": "Invalid currency test"
+}
+
+### 15. Edge Case - Very Long Description
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "id": "payment-015",
+  "amount": 100.00,
+  "currency": "USD",
+  "description": "This is a very long description that might test the limits of the system and see how it handles extremely long text inputs that could potentially cause issues with database storage or processing limitations in the payment system"
+}
+
+### 16. Edge Case - Special Characters in Description
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "id": "payment-016",
+  "amount": 100.00,
+  "currency": "USD",
+  "description": "Payment with special chars: !@#$%^&*()_+-=[]{}|;':\",./<>?"
+}
+
+### 17. Edge Case - Unicode Characters
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "id": "payment-017",
+  "amount": 100.00,
+  "currency": "USD",
+  "description": "Payment with unicode: 测试支付 🚀 €£¥"
+}
+
+### 18. Edge Case - Empty JSON Object
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{}
+
+### 19. Edge Case - Invalid JSON Format
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "id": "payment-019",
+  "amount": "invalid-number",
+  "currency": "USD",
+  "description": "Invalid amount format"
+}
+
+### 20. Valid Payment Request - Multiple Decimal Places
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "id": "payment-020",
+  "amount": 123.456789,
+  "currency": "USD",
+  "description": "Multiple decimal places test"
+}

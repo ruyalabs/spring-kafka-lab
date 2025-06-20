@@ -1,0 +1,9 @@
+spring:
+  profiles:
+    active: test  # Activate the test profile
+
+# Override any specific test configurations if needed
+  kafka:
+    bootstrap-servers: ${spring.embedded.kafka.brokers}
+    consumer:
+      group-id: payment-consumer-test-group  # Override the group ID for tests
