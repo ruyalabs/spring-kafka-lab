@@ -17,8 +17,6 @@ import org.springframework.kafka.support.serializer.DeserializationException;
 import org.springframework.stereotype.Component;
 import org.springframework.util.backoff.ExponentialBackOff;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
 
 @Slf4j
 @Component
@@ -81,20 +79,10 @@ public class PaymentRequestErrorHandler extends DefaultErrorHandler {
 
     private void logRetryAttempt(org.apache.kafka.clients.consumer.ConsumerRecord<?, ?> record,
                                  Exception exception, String attemptType) {
-        String stackTrace = getStackTrace(exception);
-
-        log.error("PaymentRequestErrorHandler: {} for record - Topic: {}, Partition: {}, Offset: {}, Key: {}",
-                attemptType, record.topic(), record.partition(), record.offset(), record.key());
-        log.error("Exception: {}", exception.getMessage());
-        log.error("Stack trace: {}", stackTrace);
+        log.error("PaymentRequestErrorHandler: {} for record - Topic: {}, Partition: {}, Offset: {}, Key: {}, Exception: {}",
+                attemptType, record.topic(), record.partition(), record.offset(), record.key(), exception.getMessage(), exception);
     }
 
-    private String getStackTrace(Exception exception) {
-        StringWriter sw = new StringWriter();
-        PrintWriter pw = new PrintWriter(sw);
-        exception.printStackTrace(pw);
-        return sw.toString();
-    }
 
     @RequiredArgsConstructor
     private static class PaymentRequestRecoverer implements ConsumerRecordRecoverer {
