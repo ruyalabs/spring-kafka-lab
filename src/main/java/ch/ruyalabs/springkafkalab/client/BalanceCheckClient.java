@@ -4,7 +4,6 @@ import ch.ruyalabs.springkafkalab.exception.AccountNotFoundException;
 import ch.ruyalabs.springkafkalab.exception.InsufficientBalanceException;
 import ch.ruyalabs.springkafkalab.exception.ServiceUnavailableException;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -34,52 +33,30 @@ public class BalanceCheckClient {
     public boolean checkBalance(String customerId, Double requiredAmount)
             throws InsufficientBalanceException, AccountNotFoundException, ServiceUnavailableException {
 
-        // Set MDC context for structured logging
-        MDC.put("customerId", customerId);
-        MDC.put("requiredAmount", requiredAmount.toString());
-        MDC.put("operation", "balance_check");
+        log.info("Starting balance check simulation - Operation: balance_check, CustomerId: {}, RequiredAmount: {}", 
+                customerId, requiredAmount);
 
-        try {
-            log.info("Starting balance check simulation",
-                    net.logstash.logback.argument.StructuredArguments.kv("event", "balance_check_start"),
-                    net.logstash.logback.argument.StructuredArguments.kv("customerId", customerId),
-                    net.logstash.logback.argument.StructuredArguments.kv("requiredAmount", requiredAmount));
-
-            if (simulateAccountNotFoundException) {
-                log.error("Balance check failed due to account not found",
-                        net.logstash.logback.argument.StructuredArguments.kv("event", "balance_check_failed"),
-                        net.logstash.logback.argument.StructuredArguments.kv("errorType", "account_not_found"),
-                        net.logstash.logback.argument.StructuredArguments.kv("customerId", customerId));
-                throw new AccountNotFoundException("Account not found for customer: " + customerId);
-            }
-
-            if (simulateServiceUnavailableException) {
-                log.error("Balance check failed due to service unavailable",
-                        net.logstash.logback.argument.StructuredArguments.kv("event", "balance_check_failed"),
-                        net.logstash.logback.argument.StructuredArguments.kv("errorType", "service_unavailable"));
-                throw new ServiceUnavailableException("Balance check service is currently unavailable");
-            }
-
-            if (simulateInsufficientBalanceException) {
-                log.warn("Balance check failed due to insufficient balance",
-                        net.logstash.logback.argument.StructuredArguments.kv("event", "balance_check_failed"),
-                        net.logstash.logback.argument.StructuredArguments.kv("errorType", "insufficient_balance"),
-                        net.logstash.logback.argument.StructuredArguments.kv("customerId", customerId),
-                        net.logstash.logback.argument.StructuredArguments.kv("requiredAmount", requiredAmount));
-                throw new InsufficientBalanceException("Insufficient balance for customer: " + customerId +
-                        ". Required: " + requiredAmount);
-            }
-
-            log.info("Balance check completed successfully",
-                    net.logstash.logback.argument.StructuredArguments.kv("event", "balance_check_success"),
-                    net.logstash.logback.argument.StructuredArguments.kv("customerId", customerId),
-                    net.logstash.logback.argument.StructuredArguments.kv("balanceStatus", "sufficient"));
-
-            return true;
-        } finally {
-            // Clear MDC context
-            MDC.clear();
+        if (simulateAccountNotFoundException) {
+            log.error("Balance check failed due to account not found - ErrorType: account_not_found, CustomerId: {}", 
+                    customerId);
+            throw new AccountNotFoundException("Account not found for customer: " + customerId);
         }
+
+        if (simulateServiceUnavailableException) {
+            log.error("Balance check failed due to service unavailable - ErrorType: service_unavailable");
+            throw new ServiceUnavailableException("Balance check service is currently unavailable");
+        }
+
+        if (simulateInsufficientBalanceException) {
+            log.warn("Balance check failed due to insufficient balance - ErrorType: insufficient_balance, CustomerId: {}, RequiredAmount: {}", 
+                    customerId, requiredAmount);
+            throw new InsufficientBalanceException("Insufficient balance for customer: " + customerId +
+                    ". Required: " + requiredAmount);
+        }
+
+        log.info("Balance check completed successfully - BalanceStatus: sufficient, CustomerId: {}", customerId);
+
+        return true;
     }
 
 }

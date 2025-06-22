@@ -4,7 +4,6 @@ import ch.ruyalabs.springkafkalab.dto.PaymentDto;
 import ch.ruyalabs.springkafkalab.dto.PaymentResponseDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -82,84 +81,38 @@ public class PaymentResponseProducer {
     }
 
     private void sendResponse(PaymentResponseDto response, String paymentId) throws Exception {
-        // Set MDC context for structured logging
-        MDC.put("paymentId", paymentId);
-        MDC.put("customerId", response.getCustomerId());
-        MDC.put("status", response.getStatus().toString());
-        MDC.put("topic", paymentResponseTopic);
-        MDC.put("operation", "payment_response_sending");
+        log.info("Sending payment response to Kafka topic - Operation: payment_response_sending, PaymentId: {}, CustomerId: {}, Status: {}, Topic: {}", 
+                paymentId, response.getCustomerId(), response.getStatus(), paymentResponseTopic);
 
         try {
-            log.info("Sending payment response to Kafka topic",
-                    net.logstash.logback.argument.StructuredArguments.kv("event", "payment_response_sending"),
-                    net.logstash.logback.argument.StructuredArguments.kv("paymentId", paymentId),
-                    net.logstash.logback.argument.StructuredArguments.kv("status", response.getStatus()),
-                    net.logstash.logback.argument.StructuredArguments.kv("topic", paymentResponseTopic),
-                    net.logstash.logback.argument.StructuredArguments.kv("customerId", response.getCustomerId()));
-
             // Use synchronous send for transactional context
             SendResult<String, PaymentResponseDto> result =
                     kafkaTemplate.send(paymentResponseTopic, paymentId, response).get();
 
-            log.info("Payment response sent successfully to Kafka topic",
-                    net.logstash.logback.argument.StructuredArguments.kv("event", "payment_response_sent"),
-                    net.logstash.logback.argument.StructuredArguments.kv("paymentId", paymentId),
-                    net.logstash.logback.argument.StructuredArguments.kv("topic", paymentResponseTopic),
-                    net.logstash.logback.argument.StructuredArguments.kv("offset", result.getRecordMetadata().offset()),
-                    net.logstash.logback.argument.StructuredArguments.kv("partition", result.getRecordMetadata().partition()));
+            log.info("Payment response sent successfully to Kafka topic - PaymentId: {}, Topic: {}, Offset: {}, Partition: {}", 
+                    paymentId, paymentResponseTopic, result.getRecordMetadata().offset(), result.getRecordMetadata().partition());
         } catch (Exception e) {
-            log.error("Failed to send payment response to Kafka topic",
-                    net.logstash.logback.argument.StructuredArguments.kv("event", "payment_response_send_failed"),
-                    net.logstash.logback.argument.StructuredArguments.kv("paymentId", paymentId),
-                    net.logstash.logback.argument.StructuredArguments.kv("topic", paymentResponseTopic),
-                    net.logstash.logback.argument.StructuredArguments.kv("errorMessage", e.getMessage()),
-                    net.logstash.logback.argument.StructuredArguments.kv("errorType", e.getClass().getSimpleName()),
-                    e);
+            log.error("Failed to send payment response to Kafka topic - PaymentId: {}, Topic: {}, ErrorMessage: {}, ErrorType: {}", 
+                    paymentId, paymentResponseTopic, e.getMessage(), e.getClass().getSimpleName(), e);
             throw e; // Propagate the original exception instead of wrapping it
-        } finally {
-            // Clear MDC context
-            MDC.clear();
         }
     }
 
     private void sendResponseNonTransactional(PaymentResponseDto response, String paymentId) throws Exception {
-        // Set MDC context for structured logging
-        MDC.put("paymentId", paymentId);
-        MDC.put("customerId", response.getCustomerId());
-        MDC.put("status", response.getStatus().toString());
-        MDC.put("topic", paymentResponseTopic);
-        MDC.put("operation", "payment_response_sending_non_transactional");
+        log.info("Sending payment response to Kafka topic using non-transactional template - Operation: payment_response_sending_non_transactional, PaymentId: {}, CustomerId: {}, Status: {}, Topic: {}", 
+                paymentId, response.getCustomerId(), response.getStatus(), paymentResponseTopic);
 
         try {
-            log.info("Sending payment response to Kafka topic using non-transactional template",
-                    net.logstash.logback.argument.StructuredArguments.kv("event", "payment_response_sending_non_transactional"),
-                    net.logstash.logback.argument.StructuredArguments.kv("paymentId", paymentId),
-                    net.logstash.logback.argument.StructuredArguments.kv("status", response.getStatus()),
-                    net.logstash.logback.argument.StructuredArguments.kv("topic", paymentResponseTopic),
-                    net.logstash.logback.argument.StructuredArguments.kv("customerId", response.getCustomerId()));
-
             // Use non-transactional template for error recovery scenarios
             SendResult<String, PaymentResponseDto> result =
                     nonTransactionalKafkaTemplate.send(paymentResponseTopic, paymentId, response).get();
 
-            log.info("Payment response sent successfully to Kafka topic using non-transactional template",
-                    net.logstash.logback.argument.StructuredArguments.kv("event", "payment_response_sent_non_transactional"),
-                    net.logstash.logback.argument.StructuredArguments.kv("paymentId", paymentId),
-                    net.logstash.logback.argument.StructuredArguments.kv("topic", paymentResponseTopic),
-                    net.logstash.logback.argument.StructuredArguments.kv("offset", result.getRecordMetadata().offset()),
-                    net.logstash.logback.argument.StructuredArguments.kv("partition", result.getRecordMetadata().partition()));
+            log.info("Payment response sent successfully to Kafka topic using non-transactional template - PaymentId: {}, Topic: {}, Offset: {}, Partition: {}", 
+                    paymentId, paymentResponseTopic, result.getRecordMetadata().offset(), result.getRecordMetadata().partition());
         } catch (Exception e) {
-            log.error("Failed to send payment response to Kafka topic using non-transactional template",
-                    net.logstash.logback.argument.StructuredArguments.kv("event", "payment_response_send_failed_non_transactional"),
-                    net.logstash.logback.argument.StructuredArguments.kv("paymentId", paymentId),
-                    net.logstash.logback.argument.StructuredArguments.kv("topic", paymentResponseTopic),
-                    net.logstash.logback.argument.StructuredArguments.kv("errorMessage", e.getMessage()),
-                    net.logstash.logback.argument.StructuredArguments.kv("errorType", e.getClass().getSimpleName()),
-                    e);
+            log.error("Failed to send payment response to Kafka topic using non-transactional template - PaymentId: {}, Topic: {}, ErrorMessage: {}, ErrorType: {}", 
+                    paymentId, paymentResponseTopic, e.getMessage(), e.getClass().getSimpleName(), e);
             throw e; // Propagate the original exception instead of wrapping it
-        } finally {
-            // Clear MDC context
-            MDC.clear();
         }
     }
 }

@@ -6,7 +6,6 @@ import ch.ruyalabs.springkafkalab.dto.PaymentDto;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.MDC;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
@@ -29,46 +28,25 @@ public class PaymentRequestConsumer {
     public void consume(@Payload @Valid PaymentDto paymentDto) 
             throws Exception {
 
-        // Set MDC context for structured logging
-        MDC.put("paymentId", paymentDto.getPaymentId());
-        MDC.put("customerId", paymentDto.getCustomerId());
-        MDC.put("amount", paymentDto.getAmount().toString());
-        MDC.put("currency", paymentDto.getCurrency());
-        MDC.put("operation", "payment_request_processing");
+        log.info("Payment request consumed from Kafka topic: payment-request - PaymentId: {}, CustomerId: {}, Amount: {} {}, Operation: payment_request_processing", 
+                paymentDto.getPaymentId(), paymentDto.getCustomerId(), paymentDto.getAmount(), paymentDto.getCurrency());
 
-        try {
-            log.info("Payment request consumed from Kafka topic",
-                    net.logstash.logback.argument.StructuredArguments.kv("event", "payment_request_consumed"),
-                    net.logstash.logback.argument.StructuredArguments.kv("topic", "payment-request"),
-                    net.logstash.logback.argument.StructuredArguments.kv("paymentId", paymentDto.getPaymentId()),
-                    net.logstash.logback.argument.StructuredArguments.kv("customerId", paymentDto.getCustomerId()),
-                    net.logstash.logback.argument.StructuredArguments.kv("amount", paymentDto.getAmount()),
-                    net.logstash.logback.argument.StructuredArguments.kv("currency", paymentDto.getCurrency()));
+        boolean balanceCheckResult = balanceCheckClient.checkBalance(
+                paymentDto.getCustomerId(),
+                paymentDto.getAmount()
+        );
 
-            boolean balanceCheckResult = balanceCheckClient.checkBalance(
-                    paymentDto.getCustomerId(),
-                    paymentDto.getAmount()
-            );
-
-            if (balanceCheckResult) {
-                paymentExecutionClient.executePayment(paymentDto);
-                log.info("Payment request processed successfully",
-                        net.logstash.logback.argument.StructuredArguments.kv("event", "payment_request_processed"),
-                        net.logstash.logback.argument.StructuredArguments.kv("status", "success"),
-                        net.logstash.logback.argument.StructuredArguments.kv("customerId", paymentDto.getCustomerId()));
-                // Send success response
-                paymentResponseProducer.sendSuccessResponse(paymentDto);
-            } else {
-                log.info("Payment request skipped due to insufficient balance",
-                        net.logstash.logback.argument.StructuredArguments.kv("event", "payment_request_skipped"),
-                        net.logstash.logback.argument.StructuredArguments.kv("reason", "insufficient_balance"),
-                        net.logstash.logback.argument.StructuredArguments.kv("customerId", paymentDto.getCustomerId()));
-                // Send error response for insufficient balance
-                paymentResponseProducer.sendErrorResponse(paymentDto, "Insufficient balance for payment");
-            }
-        } finally {
-            // Clear MDC context
-            MDC.clear();
+        if (balanceCheckResult) {
+            paymentExecutionClient.executePayment(paymentDto);
+            log.info("Payment request processed successfully - Status: success, CustomerId: {}, PaymentId: {}", 
+                    paymentDto.getCustomerId(), paymentDto.getPaymentId());
+            // Send success response
+            paymentResponseProducer.sendSuccessResponse(paymentDto);
+        } else {
+            log.info("Payment request skipped due to insufficient balance - Reason: insufficient_balance, CustomerId: {}, PaymentId: {}", 
+                    paymentDto.getCustomerId(), paymentDto.getPaymentId());
+            // Send error response for insufficient balance
+            paymentResponseProducer.sendErrorResponse(paymentDto, "Insufficient balance for payment");
         }
     }
 }

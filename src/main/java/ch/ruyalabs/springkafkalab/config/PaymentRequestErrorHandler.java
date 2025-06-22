@@ -10,7 +10,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.listener.ConsumerRecordRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
@@ -54,26 +53,14 @@ public class PaymentRequestErrorHandler extends DefaultErrorHandler {
                                 Consumer<?, ?> consumer,
                                 org.springframework.kafka.listener.MessageListenerContainer container) {
 
-        // Set MDC context for structured logging
-        MDC.put("operation", "error_handling");
-        MDC.put("errorHandlerType", "handleRemaining");
-        MDC.put("recordCount", String.valueOf(records.size()));
+        log.error("Error handler processing remaining records after retries exhausted - Operation: error_handling, ErrorHandlerType: handleRemaining, RecordCount: {}, ExceptionType: {}, ExceptionMessage: {}", 
+                records.size(), thrownException.getClass().getSimpleName(), thrownException.getMessage());
 
-        try {
-            log.error("Error handler processing remaining records after retries exhausted",
-                    net.logstash.logback.argument.StructuredArguments.kv("event", "error_handler_final_failure"),
-                    net.logstash.logback.argument.StructuredArguments.kv("recordCount", records.size()),
-                    net.logstash.logback.argument.StructuredArguments.kv("exceptionType", thrownException.getClass().getSimpleName()),
-                    net.logstash.logback.argument.StructuredArguments.kv("exceptionMessage", thrownException.getMessage()));
-
-            for (org.apache.kafka.clients.consumer.ConsumerRecord<?, ?> record : records) {
-                logRetryAttempt(record, thrownException, "FINAL_FAILURE");
-            }
-
-            super.handleRemaining(thrownException, records, consumer, container);
-        } finally {
-            MDC.clear();
+        for (org.apache.kafka.clients.consumer.ConsumerRecord<?, ?> record : records) {
+            logRetryAttempt(record, thrownException, "FINAL_FAILURE");
         }
+
+        super.handleRemaining(thrownException, records, consumer, container);
     }
 
     @Override
@@ -89,26 +76,8 @@ public class PaymentRequestErrorHandler extends DefaultErrorHandler {
 
     private void logRetryAttempt(org.apache.kafka.clients.consumer.ConsumerRecord<?, ?> record,
                                  Exception exception, String attemptType) {
-        // Set MDC context for structured logging
-        MDC.put("operation", "error_handling");
-        MDC.put("attemptType", attemptType);
-        MDC.put("topic", record.topic());
-        MDC.put("partition", String.valueOf(record.partition()));
-        MDC.put("offset", String.valueOf(record.offset()));
-
-        try {
-            log.error("Error handler processing record retry attempt",
-                    net.logstash.logback.argument.StructuredArguments.kv("event", "error_handler_retry"),
-                    net.logstash.logback.argument.StructuredArguments.kv("attemptType", attemptType),
-                    net.logstash.logback.argument.StructuredArguments.kv("topic", record.topic()),
-                    net.logstash.logback.argument.StructuredArguments.kv("partition", record.partition()),
-                    net.logstash.logback.argument.StructuredArguments.kv("offset", record.offset()),
-                    net.logstash.logback.argument.StructuredArguments.kv("key", record.key()),
-                    net.logstash.logback.argument.StructuredArguments.kv("exceptionType", exception.getClass().getSimpleName()),
-                    net.logstash.logback.argument.StructuredArguments.kv("exceptionMessage", exception.getMessage()));
-        } finally {
-            MDC.clear();
-        }
+        log.error("Error handler processing record retry attempt - Operation: error_handling, AttemptType: {}, Topic: {}, Partition: {}, Offset: {}, Key: {}, ExceptionType: {}, ExceptionMessage: {}", 
+                attemptType, record.topic(), record.partition(), record.offset(), record.key(), exception.getClass().getSimpleName(), exception.getMessage());
     }
 
 
@@ -119,35 +88,18 @@ public class PaymentRequestErrorHandler extends DefaultErrorHandler {
 
         @Override
         public void accept(ConsumerRecord<?, ?> record, Exception exception) {
-            // Set MDC context for structured logging
-            MDC.put("operation", "record_recovery");
-            MDC.put("topic", record.topic());
-            MDC.put("partition", String.valueOf(record.partition()));
-            MDC.put("offset", String.valueOf(record.offset()));
+            log.error("Record recoverer processing failed record after all retries exhausted - Operation: record_recovery, Topic: {}, Partition: {}, Offset: {}, Key: {}, ExceptionType: {}, ExceptionMessage: {}", 
+                    record.topic(), record.partition(), record.offset(), record.key(), exception.getClass().getSimpleName(), exception.getMessage());
 
             try {
-                log.error("Record recoverer processing failed record after all retries exhausted",
-                        net.logstash.logback.argument.StructuredArguments.kv("event", "record_recovery_start"),
-                        net.logstash.logback.argument.StructuredArguments.kv("topic", record.topic()),
-                        net.logstash.logback.argument.StructuredArguments.kv("partition", record.partition()),
-                        net.logstash.logback.argument.StructuredArguments.kv("offset", record.offset()),
-                        net.logstash.logback.argument.StructuredArguments.kv("key", record.key()),
-                        net.logstash.logback.argument.StructuredArguments.kv("exceptionType", exception.getClass().getSimpleName()),
-                        net.logstash.logback.argument.StructuredArguments.kv("exceptionMessage", exception.getMessage()));
-
                 // Try to extract PaymentDto from the record
                 PaymentDto paymentDto = extractPaymentDto(record, exception);
 
                 if (paymentDto != null) {
-                    MDC.put("paymentId", paymentDto.getPaymentId());
-                    MDC.put("customerId", paymentDto.getCustomerId());
-
                     String errorMessage = buildErrorMessage(exception);
                     paymentResponseProducer.sendErrorResponseNonTransactional(paymentDto, errorMessage);
-                    log.info("Error response sent successfully for failed payment",
-                            net.logstash.logback.argument.StructuredArguments.kv("event", "error_response_sent"),
-                            net.logstash.logback.argument.StructuredArguments.kv("paymentId", paymentDto.getPaymentId()),
-                            net.logstash.logback.argument.StructuredArguments.kv("customerId", paymentDto.getCustomerId()));
+                    log.info("Error response sent successfully for failed payment - PaymentId: {}, CustomerId: {}", 
+                            paymentDto.getPaymentId(), paymentDto.getCustomerId());
                 } else {
                     // Handle case where PaymentDto could not be extracted (e.g., DeserializationException)
                     if (exception instanceof DeserializationException) {
@@ -158,22 +110,14 @@ public class PaymentRequestErrorHandler extends DefaultErrorHandler {
                         String errorMessage = "Message deserialization failed: " + exception.getMessage();
                         paymentResponseProducer.sendGenericDeserializationErrorResponse(errorMessage);
 
-                        log.info("Generic error response sent for deserialization failure",
-                                net.logstash.logback.argument.StructuredArguments.kv("event", "generic_error_response_sent"),
-                                net.logstash.logback.argument.StructuredArguments.kv("reason", "deserialization_failure"));
+                        log.info("Generic error response sent for deserialization failure - Reason: deserialization_failure");
                     } else {
-                        log.error("Could not extract PaymentDto from failed record",
-                                net.logstash.logback.argument.StructuredArguments.kv("event", "payment_dto_extraction_failed"),
-                                net.logstash.logback.argument.StructuredArguments.kv("reason", "unable_to_extract_payment_dto"));
+                        log.error("Could not extract PaymentDto from failed record - Reason: unable_to_extract_payment_dto");
                     }
                 }
             } catch (Exception e) {
-                log.error("Exception occurred while sending error response in recoverer",
-                        net.logstash.logback.argument.StructuredArguments.kv("event", "error_response_send_failed"),
-                        net.logstash.logback.argument.StructuredArguments.kv("errorType", e.getClass().getSimpleName()),
-                        net.logstash.logback.argument.StructuredArguments.kv("errorMessage", e.getMessage()));
-            } finally {
-                MDC.clear();
+                log.error("Exception occurred while sending error response in recoverer - ErrorType: {}, ErrorMessage: {}", 
+                        e.getClass().getSimpleName(), e.getMessage());
             }
         }
 
@@ -186,10 +130,8 @@ public class PaymentRequestErrorHandler extends DefaultErrorHandler {
 
                 // If it's a deserialization exception, we might not be able to recover the PaymentDto
                 if (exception instanceof DeserializationException) {
-                    log.warn("Deserialization exception occurred, cannot extract PaymentDto from record",
-                            net.logstash.logback.argument.StructuredArguments.kv("event", "payment_dto_extraction_warning"),
-                            net.logstash.logback.argument.StructuredArguments.kv("reason", "deserialization_exception"),
-                            net.logstash.logback.argument.StructuredArguments.kv("exceptionType", exception.getClass().getSimpleName()));
+                    log.warn("Deserialization exception occurred, cannot extract PaymentDto from record - Reason: deserialization_exception, ExceptionType: {}", 
+                            exception.getClass().getSimpleName());
                     return null;
                 }
 
@@ -198,17 +140,13 @@ public class PaymentRequestErrorHandler extends DefaultErrorHandler {
                     return (PaymentDto) record.value();
                 }
 
-                log.warn("Record value is not a PaymentDto",
-                        net.logstash.logback.argument.StructuredArguments.kv("event", "payment_dto_extraction_warning"),
-                        net.logstash.logback.argument.StructuredArguments.kv("reason", "invalid_record_value_type"),
-                        net.logstash.logback.argument.StructuredArguments.kv("recordValueType", record.value() != null ? record.value().getClass().getSimpleName() : "null"));
+                log.warn("Record value is not a PaymentDto - Reason: invalid_record_value_type, RecordValueType: {}", 
+                        record.value() != null ? record.value().getClass().getSimpleName() : "null");
                 return null;
 
             } catch (Exception e) {
-                log.error("Exception while extracting PaymentDto",
-                        net.logstash.logback.argument.StructuredArguments.kv("event", "payment_dto_extraction_error"),
-                        net.logstash.logback.argument.StructuredArguments.kv("errorType", e.getClass().getSimpleName()),
-                        net.logstash.logback.argument.StructuredArguments.kv("errorMessage", e.getMessage()));
+                log.error("Exception while extracting PaymentDto - ErrorType: {}, ErrorMessage: {}", 
+                        e.getClass().getSimpleName(), e.getMessage());
                 return null;
             }
         }
@@ -238,22 +176,12 @@ public class PaymentRequestErrorHandler extends DefaultErrorHandler {
                 String rawValueHex = rawValue != null ? bytesToHex(rawValue) : "null";
                 String rawValueString = rawValue != null ? new String(rawValue) : "null";
 
-                log.error("Raw message content for manual investigation",
-                        net.logstash.logback.argument.StructuredArguments.kv("event", "raw_message_log"),
-                        net.logstash.logback.argument.StructuredArguments.kv("topic", record.topic()),
-                        net.logstash.logback.argument.StructuredArguments.kv("partition", record.partition()),
-                        net.logstash.logback.argument.StructuredArguments.kv("offset", record.offset()),
-                        net.logstash.logback.argument.StructuredArguments.kv("key", record.key()),
-                        net.logstash.logback.argument.StructuredArguments.kv("rawValueHex", rawValueHex),
-                        net.logstash.logback.argument.StructuredArguments.kv("rawValueString", rawValueString),
-                        net.logstash.logback.argument.StructuredArguments.kv("rawValueLength", rawValue != null ? rawValue.length : 0),
-                        net.logstash.logback.argument.StructuredArguments.kv("exceptionType", exception.getClass().getSimpleName()),
-                        net.logstash.logback.argument.StructuredArguments.kv("exceptionMessage", exception.getMessage()));
+                log.error("Raw message content for manual investigation - Topic: {}, Partition: {}, Offset: {}, Key: {}, RawValueHex: {}, RawValueString: {}, RawValueLength: {}, ExceptionType: {}, ExceptionMessage: {}", 
+                        record.topic(), record.partition(), record.offset(), record.key(), rawValueHex, rawValueString, 
+                        rawValue != null ? rawValue.length : 0, exception.getClass().getSimpleName(), exception.getMessage());
             } catch (Exception e) {
-                log.error("Failed to log raw message content",
-                        net.logstash.logback.argument.StructuredArguments.kv("event", "raw_message_log_failed"),
-                        net.logstash.logback.argument.StructuredArguments.kv("errorType", e.getClass().getSimpleName()),
-                        net.logstash.logback.argument.StructuredArguments.kv("errorMessage", e.getMessage()));
+                log.error("Failed to log raw message content - ErrorType: {}, ErrorMessage: {}", 
+                        e.getClass().getSimpleName(), e.getMessage());
             }
         }
 
