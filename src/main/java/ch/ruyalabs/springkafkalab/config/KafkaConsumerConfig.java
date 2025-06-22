@@ -45,7 +45,6 @@ public class KafkaConsumerConfig {
         configProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, autoOffsetReset);
         configProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
 
-
         return new DefaultKafkaConsumerFactory<>(configProps);
     }
 
