@@ -25,7 +25,7 @@ public class PaymentRequestConsumer {
             topics = "${app.kafka.topics.payment-request}", 
             containerFactory = "paymentRequestKafkaListenerContainerFactory"
     )
-    @Transactional(transactionManager = "chainedKafkaTransactionManager")
+    @Transactional(transactionManager = "kafkaTransactionManager")
     public void consume(@Payload @Valid PaymentDto paymentDto) 
             throws Exception {
 

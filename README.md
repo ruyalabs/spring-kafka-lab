@@ -47,7 +47,7 @@ The payment processing follows this detailed lifecycle:
     topics = "${app.kafka.topics.payment-request}", 
     containerFactory = "paymentRequestKafkaListenerContainerFactory"
 )
-@Transactional(transactionManager = "chainedKafkaTransactionManager")
+@Transactional(transactionManager = "kafkaTransactionManager")
 public void consume(@Payload @Valid PaymentDto paymentDto)
 ```
 
@@ -251,7 +251,7 @@ app:
 **Key Features**:
 - **ErrorHandlingDeserializer**: Wraps deserialization errors for proper handling
 - **Manual Acknowledgment**: Ensures messages are only acknowledged after successful processing
-- **Transactional Processing**: Uses `chainedKafkaTransactionManager` for atomicity
+- **Transactional Processing**: Uses `kafkaTransactionManager` for atomicity
 
 ### Producer Configuration
 ```yaml
@@ -359,7 +359,7 @@ The application uses Spring's transaction management with Kafka transactions:
 
 ### Transaction Manager Configuration
 ```java
-@Transactional(transactionManager = "chainedKafkaTransactionManager")
+@Transactional(transactionManager = "kafkaTransactionManager")
 ```
 
 This ensures:
