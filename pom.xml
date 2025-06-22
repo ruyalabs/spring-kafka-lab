@@ -106,7 +106,7 @@
                             <generateApis>false</generateApis>
                             <generateModels>true</generateModels>
                             <generateSupportingFiles>false</generateSupportingFiles>
-                            <modelsToGenerate>PaymentDto</modelsToGenerate>
+                            <modelsToGenerate>PaymentDto,PaymentResponseDto</modelsToGenerate>
                             <configOptions>
                                 <serializationLibrary>jackson</serializationLibrary>
                                 <useJakartaEe>true</useJakartaEe>

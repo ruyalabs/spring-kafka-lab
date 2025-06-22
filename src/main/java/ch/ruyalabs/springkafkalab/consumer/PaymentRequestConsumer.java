@@ -14,5 +14,6 @@ public class PaymentRequestConsumer {
     @KafkaListener(topics = "${app.kafka.topics.payment-request}", groupId = "${app.kafka.consumer.payment-request.group-id}")
     public void consume(@Payload @Valid PaymentDto paymentDto) {
         log.info("Consumed PaymentDto from payment-request topic: {}", paymentDto);
+
     }
 }
