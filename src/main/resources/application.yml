@@ -53,7 +53,7 @@ app:
     balance-check:
       simulate-insufficient-balance: false
       simulate-account-not-found: false
-      simulate-service-unavailable: false
+      simulate-service-unavailable: true
     payment-execution:
       simulate-payment-processing-exception: false
       simulate-invalid-payment-method-exception: false

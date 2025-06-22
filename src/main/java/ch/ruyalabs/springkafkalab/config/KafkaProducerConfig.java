@@ -55,6 +55,25 @@ public class KafkaProducerConfig {
     }
 
     @Bean
+    public ProducerFactory<String, PaymentResponseDto> nonTransactionalPaymentResponseProducerFactory() {
+        Map<String, Object> configProps = new HashMap<>();
+        configProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        configProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        configProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
+        configProps.put(ProducerConfig.ACKS_CONFIG, acks);
+        configProps.put(ProducerConfig.RETRIES_CONFIG, retries);
+        configProps.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, enableIdempotence);
+        // No transactional ID for error recovery scenarios
+
+        return new DefaultKafkaProducerFactory<>(configProps);
+    }
+
+    @Bean
+    public KafkaTemplate<String, PaymentResponseDto> nonTransactionalPaymentResponseKafkaTemplate() {
+        return new KafkaTemplate<>(nonTransactionalPaymentResponseProducerFactory());
+    }
+
+    @Bean
     public KafkaTransactionManager kafkaTransactionManager() {
         return new KafkaTransactionManager(paymentResponseProducerFactory());
     }
