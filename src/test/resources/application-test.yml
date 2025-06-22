@@ -1,6 +1,6 @@
 spring:
   kafka:
-    bootstrap-servers: localhost:29092,localhost:29093,localhost:29094
+    bootstrap-servers: localhost:9092
     consumer:
       key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
@@ -9,46 +9,49 @@ spring:
         spring.json.value.default.type: "ch.ruyalabs.springkafkalab.dto.PaymentDto"
         spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
         spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
   jackson:
     serialization:
       write-dates-as-timestamps: false
     deserialization:
       fail-on-unknown-properties: false
   application:
-    name: spring-kafka-lab
+    name: spring-kafka-lab-test
 
 logging:
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
   level:
-    ch.ruyalabs.springkafkalab: INFO
+    ch.ruyalabs.springkafkalab: DEBUG
     org.springframework.kafka: WARN
     org.apache.kafka: WARN
+    org.springframework: WARN
 
 app:
   kafka:
     topics:
-      payment-request: payment-request
-      payment-response: payment-response
-      partitions: 3
-      replication-factor: 3
+      payment-request: payment-request-test
+      payment-response: payment-response-test
+      partitions: 1
+      replication-factor: 1
     consumer:
       payment-request:
-        group-id: payment-request-consumer-group
+        group-id: payment-request-consumer-group-test
         trusted-packages: "ch.ruyalabs.springkafkalab.dto"
         auto-offset-reset: "earliest"
         enable-auto-commit: false
     producer:
-      acks: "all"
-      retries: 3
-      enable-idempotence: true
-      transactional-id: "payment-response-producer"
+      acks: "1"
+      retries: 0
+      enable-idempotence: false
     error-handler:
       retry:
-        initial-interval: 1000
-        multiplier: 2.0
-        max-interval: 30000
-        max-elapsed-time: 300000
+        initial-interval: 100
+        multiplier: 1.5
+        max-interval: 1000
+        max-elapsed-time: 5000
   simulation:
     balance-check:
       simulate-insufficient-balance: false
