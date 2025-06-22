@@ -5,7 +5,7 @@ info:
   version: 1.0.0
 servers:
   - url: 'https://api.example.com'
-paths: {}
+paths: { }
 components:
   schemas:
     PaymentDto:
@@ -15,8 +15,7 @@ components:
         - amount
         - currency
         - paymentMethod
-        - status
-        - createdAt
+        - customerId
       properties:
         paymentId:
           type: string
@@ -72,49 +71,14 @@ components:
           description: Optional description of the payment
           maxLength: 500
           example: "Payment for order #12345"
-        merchantId:
-          type: string
-          description: Identifier of the merchant processing the payment
-          example: "merchant_abc123"
         customerId:
           type: string
           description: Identifier of the customer making the payment
           example: "customer_xyz789"
-        orderId:
-          type: string
-          description: Associated order identifier
-          example: "order_456def"
-        isRecurring:
-          type: boolean
-          description: Indicates if this is a recurring payment
-          default: false
-          example: false
-        failureReason:
-          type: string
-          description: Reason for payment failure (only present when status is FAILED)
-          example: "Insufficient funds"
-        refundAmount:
-          type: number
-          format: double
-          description: Amount refunded (only present for refunded payments)
-          minimum: 0
-          example: 25.50
-        metadata:
-          type: object
-          description: Additional metadata as key-value pairs
-          additionalProperties:
-            type: string
-          example:
-            source: "mobile_app"
-            campaign: "summer_sale"
     PaymentResponseDto:
       type: object
       required:
-        - paymentId
         - status
-        - amount
-        - currency
-        - createdAt
       properties:
         paymentId:
           type: string
@@ -131,6 +95,7 @@ components:
             - FAILED
             - CANCELLED
             - REFUNDED
+            - ERROR
           example: "COMPLETED"
         amount:
           type: number
@@ -160,32 +125,46 @@ components:
           format: date-time
           description: Timestamp when the payment was created
           example: "2023-12-01T10:30:00Z"
-        updatedAt:
+        success:
+          type: boolean
+          description: Indicates whether the payment operation was successful
+          example: true
+        errorCode:
           type: string
-          format: date-time
-          description: Timestamp when the payment was last updated
-          example: "2023-12-01T10:35:00Z"
-        transactionId:
+          description: Error code when payment processing fails
+          example: "INSUFFICIENT_FUNDS"
+        errorMessage:
           type: string
-          description: Transaction identifier from payment processor
-          example: "txn_9876543210fedcba"
-        processingTime:
-          type: integer
-          description: Time taken to process the payment in milliseconds
-          minimum: 0
-          example: 1250
-        message:
-          type: string
-          description: Response message from payment processing
-          maxLength: 200
-          example: "Payment processed successfully"
-        failureReason:
-          type: string
-          description: Reason for payment failure (only present when status is FAILED)
-          example: "Insufficient funds"
-        refundAmount:
-          type: number
-          format: double
-          description: Amount refunded (only present for refunded payments)
-          minimum: 0
-          example: 25.50
+          description: Human-readable error message describing what went wrong
+          example: "Payment failed due to insufficient funds in the account"
+        errorDetails:
+          type: object
+          description: Additional error details and context
+          properties:
+            timestamp:
+              type: string
+              format: date-time
+              description: Timestamp when the error occurred
+              example: "2023-12-01T10:35:00Z"
+            requestId:
+              type: string
+              description: Unique identifier for the request that caused the error
+              example: "req_1234567890abcdef"
+            validationErrors:
+              type: array
+              description: List of validation errors if applicable
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                    description: Field name that failed validation
+                    example: "amount"
+                  message:
+                    type: string
+                    description: Validation error message
+                    example: "Amount must be greater than 0"
+        retryable:
+          type: boolean
+          description: Indicates whether the failed operation can be retried
+          example: false
