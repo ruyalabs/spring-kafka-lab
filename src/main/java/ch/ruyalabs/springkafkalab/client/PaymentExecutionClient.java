@@ -1,16 +1,25 @@
 package ch.ruyalabs.springkafkalab.client;
 
 import ch.ruyalabs.springkafkalab.dto.PaymentDto;
+import ch.ruyalabs.springkafkalab.exception.GatewayTimeoutException;
+import ch.ruyalabs.springkafkalab.exception.InvalidPaymentMethodException;
+import ch.ruyalabs.springkafkalab.exception.PaymentProcessingException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
 public class PaymentExecutionClient {
 
-    private static final boolean SIMULATE_PAYMENT_PROCESSING_EXCEPTION = false;
-    private static final boolean SIMULATE_INVALID_PAYMENT_METHOD_EXCEPTION = false;
-    private static final boolean SIMULATE_GATEWAY_TIMEOUT_EXCEPTION = false;
+    @Value("${app.simulation.payment-execution.simulate-payment-processing-exception}")
+    private boolean simulatePaymentProcessingException;
+
+    @Value("${app.simulation.payment-execution.simulate-invalid-payment-method-exception}")
+    private boolean simulateInvalidPaymentMethodException;
+
+    @Value("${app.simulation.payment-execution.simulate-gateway-timeout-exception}")
+    private boolean simulateGatewayTimeoutException;
 
     /**
      * Simulates a POST request to execute payment
@@ -27,18 +36,18 @@ public class PaymentExecutionClient {
         log.info("Simulating POST request to execute payment for ID: {} with amount: {} {}",
                 paymentDto.getPaymentId(), paymentDto.getAmount(), paymentDto.getCurrency());
 
-        if (SIMULATE_INVALID_PAYMENT_METHOD_EXCEPTION) {
+        if (simulateInvalidPaymentMethodException) {
             log.error("Simulating InvalidPaymentMethodException for payment method: {}",
                     paymentDto.getPaymentMethod());
             throw new InvalidPaymentMethodException("Invalid payment method: " + paymentDto.getPaymentMethod());
         }
 
-        if (SIMULATE_GATEWAY_TIMEOUT_EXCEPTION) {
+        if (simulateGatewayTimeoutException) {
             log.error("Simulating GatewayTimeoutException for payment ID: {}", paymentDto.getPaymentId());
             throw new GatewayTimeoutException("Payment gateway timeout for payment: " + paymentDto.getPaymentId());
         }
 
-        if (SIMULATE_PAYMENT_PROCESSING_EXCEPTION) {
+        if (simulatePaymentProcessingException) {
             log.error("Simulating PaymentProcessingException for payment ID: {}", paymentDto.getPaymentId());
             throw new PaymentProcessingException("Payment processing failed for payment: " + paymentDto.getPaymentId() +
                     ". Amount: " + paymentDto.getAmount() + " " + paymentDto.getCurrency());
@@ -50,21 +59,4 @@ public class PaymentExecutionClient {
         return result;
     }
 
-    public static class PaymentProcessingException extends Exception {
-        public PaymentProcessingException(String message) {
-            super(message);
-        }
-    }
-
-    public static class InvalidPaymentMethodException extends Exception {
-        public InvalidPaymentMethodException(String message) {
-            super(message);
-        }
-    }
-
-    public static class GatewayTimeoutException extends Exception {
-        public GatewayTimeoutException(String message) {
-            super(message);
-        }
-    }
 }

@@ -22,8 +22,31 @@ app:
     topics:
       payment-request: payment-request
       payment-response: payment-response
+      partitions: 3
+      replication-factor: 3
     consumer:
       payment-request:
         group-id: payment-request-consumer-group
         trusted-packages: "ch.ruyalabs.springkafkalab.dto"
         auto-offset-reset: "earliest"
+        enable-auto-commit: false
+    producer:
+      acks: "all"
+      retries: 3
+      enable-idempotence: true
+      transactional-id: "payment-response-producer"
+    error-handler:
+      retry:
+        initial-interval: 1000
+        multiplier: 2.0
+        max-interval: 30000
+        max-elapsed-time: 300000
+  simulation:
+    balance-check:
+      simulate-insufficient-balance: false
+      simulate-account-not-found: false
+      simulate-service-unavailable: false
+    payment-execution:
+      simulate-payment-processing-exception: false
+      simulate-invalid-payment-method-exception: false
+      simulate-gateway-timeout-exception: false

@@ -2,15 +2,20 @@ package ch.ruyalabs.springkafkalab.config;
 
 import ch.ruyalabs.springkafkalab.consumer.PaymentResponseProducer;
 import ch.ruyalabs.springkafkalab.dto.PaymentDto;
+import ch.ruyalabs.springkafkalab.exception.AccountNotFoundException;
+import ch.ruyalabs.springkafkalab.exception.InsufficientBalanceException;
+import ch.ruyalabs.springkafkalab.exception.InvalidPaymentMethodException;
+import ch.ruyalabs.springkafkalab.exception.PaymentProcessingException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.listener.ConsumerRecordRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.DeserializationException;
 import org.springframework.stereotype.Component;
-import org.springframework.util.backoff.FixedBackOff;
+import org.springframework.util.backoff.ExponentialBackOff;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -21,9 +26,30 @@ public class PaymentRequestErrorHandler extends DefaultErrorHandler {
 
     private final PaymentResponseProducer paymentResponseProducer;
 
-    public PaymentRequestErrorHandler(PaymentResponseProducer paymentResponseProducer) {
-        super(new PaymentRequestRecoverer(paymentResponseProducer), new FixedBackOff(1000L, 3L));
+    public PaymentRequestErrorHandler(PaymentResponseProducer paymentResponseProducer,
+                                      @Value("${app.kafka.error-handler.retry.initial-interval}") long initialInterval,
+                                      @Value("${app.kafka.error-handler.retry.multiplier}") double multiplier,
+                                      @Value("${app.kafka.error-handler.retry.max-interval}") long maxInterval,
+                                      @Value("${app.kafka.error-handler.retry.max-elapsed-time}") long maxElapsedTime) {
+        super(new PaymentRequestRecoverer(paymentResponseProducer), createExponentialBackOff(initialInterval, multiplier, maxInterval, maxElapsedTime));
         this.paymentResponseProducer = paymentResponseProducer;
+
+        // Configure business exceptions to not be retried
+        addNotRetryableExceptions(
+                InsufficientBalanceException.class,
+                AccountNotFoundException.class,
+                PaymentProcessingException.class,
+                InvalidPaymentMethodException.class
+        );
+    }
+
+    private static ExponentialBackOff createExponentialBackOff(long initialInterval, double multiplier, long maxInterval, long maxElapsedTime) {
+        ExponentialBackOff backOff = new ExponentialBackOff();
+        backOff.setInitialInterval(initialInterval);
+        backOff.setMultiplier(multiplier);
+        backOff.setMaxInterval(maxInterval);
+        backOff.setMaxElapsedTime(maxElapsedTime);
+        return backOff;
     }
 
     @Override

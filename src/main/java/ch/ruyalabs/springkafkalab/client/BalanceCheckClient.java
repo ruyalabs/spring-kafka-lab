@@ -1,15 +1,24 @@
 package ch.ruyalabs.springkafkalab.client;
 
+import ch.ruyalabs.springkafkalab.exception.AccountNotFoundException;
+import ch.ruyalabs.springkafkalab.exception.InsufficientBalanceException;
+import ch.ruyalabs.springkafkalab.exception.ServiceUnavailableException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
 public class BalanceCheckClient {
 
-    private static final boolean SIMULATE_INSUFFICIENT_BALANCE_EXCEPTION = false;
-    private static final boolean SIMULATE_ACCOUNT_NOT_FOUND_EXCEPTION = false;
-    private static final boolean SIMULATE_SERVICE_UNAVAILABLE_EXCEPTION = false;
+    @Value("${app.simulation.balance-check.simulate-insufficient-balance}")
+    private boolean simulateInsufficientBalanceException;
+
+    @Value("${app.simulation.balance-check.simulate-account-not-found}")
+    private boolean simulateAccountNotFoundException;
+
+    @Value("${app.simulation.balance-check.simulate-service-unavailable}")
+    private boolean simulateServiceUnavailableException;
 
     /**
      * Simulates a GET request to check account balance
@@ -27,17 +36,17 @@ public class BalanceCheckClient {
         log.info("Simulating GET request to check balance for customer: {} with required amount: {}",
                 customerId, requiredAmount);
 
-        if (SIMULATE_ACCOUNT_NOT_FOUND_EXCEPTION) {
+        if (simulateAccountNotFoundException) {
             log.error("Simulating AccountNotFoundException for customer: {}", customerId);
             throw new AccountNotFoundException("Account not found for customer: " + customerId);
         }
 
-        if (SIMULATE_SERVICE_UNAVAILABLE_EXCEPTION) {
+        if (simulateServiceUnavailableException) {
             log.error("Simulating ServiceUnavailableException for balance check service");
             throw new ServiceUnavailableException("Balance check service is currently unavailable");
         }
 
-        if (SIMULATE_INSUFFICIENT_BALANCE_EXCEPTION) {
+        if (simulateInsufficientBalanceException) {
             log.warn("Simulating InsufficientBalanceException for customer: {} with required amount: {}",
                     customerId, requiredAmount);
             throw new InsufficientBalanceException("Insufficient balance for customer: " + customerId +
@@ -48,21 +57,4 @@ public class BalanceCheckClient {
         return true;
     }
 
-    public static class InsufficientBalanceException extends Exception {
-        public InsufficientBalanceException(String message) {
-            super(message);
-        }
-    }
-
-    public static class AccountNotFoundException extends Exception {
-        public AccountNotFoundException(String message) {
-            super(message);
-        }
-    }
-
-    public static class ServiceUnavailableException extends Exception {
-        public ServiceUnavailableException(String message) {
-            super(message);
-        }
-    }
 }

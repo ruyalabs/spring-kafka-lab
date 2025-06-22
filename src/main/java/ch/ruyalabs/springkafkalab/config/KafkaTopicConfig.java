@@ -14,13 +14,19 @@ public class KafkaTopicConfig {
     @Value("${app.kafka.topics.payment-response}")
     private String paymentResponseTopicName;
 
+    @Value("${app.kafka.topics.partitions}")
+    private int partitions;
+
+    @Value("${app.kafka.topics.replication-factor}")
+    private short replicationFactor;
+
     @Bean
     public NewTopic paymentRequestTopic() {
-        return new NewTopic(paymentRequestTopicName, 3, (short) 3);
+        return new NewTopic(paymentRequestTopicName, partitions, replicationFactor);
     }
 
     @Bean
     public NewTopic paymentResponseTopic() {
-        return new NewTopic(paymentResponseTopicName, 3, (short) 3);
+        return new NewTopic(paymentResponseTopicName, partitions, replicationFactor);
     }
 }

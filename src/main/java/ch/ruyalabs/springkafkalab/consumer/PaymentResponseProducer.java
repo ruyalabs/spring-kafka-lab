@@ -21,12 +21,12 @@ public class PaymentResponseProducer {
     @Value("${app.kafka.topics.payment-response}")
     private String paymentResponseTopic;
 
-    public void sendSuccessResponse(PaymentDto originalRequest) {
+    public void sendSuccessResponse(PaymentDto originalRequest) throws Exception {
         PaymentResponseDto response = createSuccessResponse(originalRequest);
         sendResponse(response, originalRequest.getPaymentId());
     }
 
-    public void sendErrorResponse(PaymentDto originalRequest, String errorMessage) {
+    public void sendErrorResponse(PaymentDto originalRequest, String errorMessage) throws Exception {
         PaymentResponseDto response = createErrorResponse(originalRequest, errorMessage);
         sendResponse(response, originalRequest.getPaymentId());
     }
@@ -52,24 +52,20 @@ public class PaymentResponseProducer {
                 .errorInfo(errorMessage);
     }
 
-    private void sendResponse(PaymentResponseDto response, String paymentId) {
+    private void sendResponse(PaymentResponseDto response, String paymentId) throws Exception {
         try {
             log.info("Sending payment response for paymentId: {}, status: {}", paymentId, response.getStatus());
 
-            CompletableFuture<SendResult<String, PaymentResponseDto>> future = 
-                kafkaTemplate.send(paymentResponseTopic, paymentId, response);
+            // Use synchronous send for transactional context
+            SendResult<String, PaymentResponseDto> result = 
+                kafkaTemplate.send(paymentResponseTopic, paymentId, response).get();
 
-            future.whenComplete((result, ex) -> {
-                if (ex == null) {
-                    log.info("Successfully sent payment response for paymentId: {} to topic: {} at offset: {}", 
-                            paymentId, paymentResponseTopic, result.getRecordMetadata().offset());
-                } else {
-                    log.error("Failed to send payment response for paymentId: {} to topic: {}", 
-                            paymentId, paymentResponseTopic, ex);
-                }
-            });
+            log.info("Successfully sent payment response for paymentId: {} to topic: {} at offset: {}", 
+                    paymentId, paymentResponseTopic, result.getRecordMetadata().offset());
         } catch (Exception e) {
-            log.error("Exception occurred while sending payment response for paymentId: {}", paymentId, e);
+            log.error("Failed to send payment response for paymentId: {} to topic: {}", 
+                    paymentId, paymentResponseTopic, e);
+            throw e; // Propagate the original exception instead of wrapping it
         }
     }
 }
