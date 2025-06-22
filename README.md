@@ -111,10 +111,10 @@ app:
   kafka:
     error-handler:
       retry:
-        initial-interval: 1000      # 1 second initial delay
-        multiplier: 2.0             # Exponential backoff multiplier
-        max-interval: 30000         # Maximum 30 seconds between retries
-        max-elapsed-time: 300000    # Total retry period: 5 minutes
+        initial-interval: 200       # 200ms initial delay
+        multiplier: 1.5             # Exponential backoff multiplier
+        max-interval: 2000          # Maximum 2 seconds between retries
+        max-elapsed-time: 10000     # Total retry period: 10 seconds
 ```
 
 ### Retry Behavior by Exception Type
@@ -128,13 +128,14 @@ These exceptions trigger the exponential backoff retry mechanism:
 
 **Retry Schedule Example**:
 - Attempt 1: Immediate
-- Attempt 2: After 1 second
-- Attempt 3: After 2 seconds  
-- Attempt 4: After 4 seconds
-- Attempt 5: After 8 seconds
-- Attempt 6: After 16 seconds
-- Attempt 7: After 30 seconds (capped at max-interval)
-- Continue until max-elapsed-time (5 minutes) is reached
+- Attempt 2: After 200ms
+- Attempt 3: After 300ms (200ms × 1.5)
+- Attempt 4: After 450ms (300ms × 1.5)
+- Attempt 5: After 675ms (450ms × 1.5)
+- Attempt 6: After 1012ms (675ms × 1.5)
+- Attempt 7: After 1518ms (1012ms × 1.5)
+- Attempt 8: After 2000ms (capped at max-interval)
+- Continue until max-elapsed-time (10 seconds) is reached
 
 #### Non-Retryable Exceptions
 These exceptions immediately trigger the recovery process without retries:
@@ -378,7 +379,7 @@ app:
     balance-check:
       simulate-insufficient-balance: false
       simulate-account-not-found: false  
-      simulate-service-unavailable: false
+      simulate-service-unavailable: true
 ```
 
 ### Payment Execution Simulation
@@ -405,7 +406,10 @@ app:
 docker-compose up -d
 ```
 
-This starts a 3-node Kafka cluster with Zookeeper.
+This starts a 3-node Kafka cluster with Zookeeper and includes:
+- **Kafka Brokers**: 3 brokers (kafka1, kafka2, kafka3) on ports 29092, 29093, 29094
+- **Zookeeper**: Coordination service on port 2181
+- **Kafdrop**: Web UI for Kafka monitoring on port 19000 (http://localhost:19000)
 
 ### Running the Application
 ```bash
@@ -419,12 +423,22 @@ The application supports different profiles:
 
 ## Monitoring and Observability
 
+### Kafka Monitoring with Kafdrop
+The application includes Kafdrop, a web UI for monitoring Kafka clusters:
+- **URL**: http://localhost:19000
+- **Features**: 
+  - View topics, partitions, and consumer groups
+  - Browse messages in topics
+  - Monitor consumer lag
+  - View broker and cluster information
+
 ### Key Metrics to Monitor
 1. **Message Processing Rate** - Messages consumed per second
 2. **Error Rate** - Percentage of messages that fail processing
 3. **Retry Attempts** - Number of retry attempts per message
 4. **Processing Latency** - Time from consumption to response
 5. **Transaction Success Rate** - Percentage of successful transactions
+6. **Consumer Lag** - Delay between message production and consumption (visible in Kafdrop)
 
 ### Log Analysis Queries
 ```bash
