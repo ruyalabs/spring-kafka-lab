@@ -1,0 +1,142 @@
+version: '3.8'
+
+# Define a common environment block for all Kafka brokers to reduce repetition
+x-kafka-common-env: &kafka-common-env
+  KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+  KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT_INTERNAL:PLAINTEXT,PLAINTEXT_EXTERNAL:PLAINTEXT
+  KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+  KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+  KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+  KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+  KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 3
+  KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 3
+  KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+  KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+  KAFKA_MIN_INSYNC_REPLICAS: 2
+  # Set JVM Heap Options
+  KAFKA_HEAP_OPTS: "-Xms512M -Xmx512M"
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.3
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      # Set JVM Heap Options
+      ZOOKEEPER_HEAP_OPTS: "-Xms256M -Xmx256M"
+    volumes:
+      # Add volumes for data persistence
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
+    networks:
+      - kafka-network
+    healthcheck:
+      # Improvement: Add healthcheck for reliability
+      test: ["CMD-SHELL", "echo 'ruok' | nc localhost 2181 | grep imok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka1:
+    image: confluentinc/cp-kafka:7.5.3
+    container_name: kafka1
+    ports:
+      - "29092:29092"
+    depends_on:
+      zookeeper:
+        condition: service_healthy # Wait for Zookeeper to be healthy
+    environment:
+      <<: *kafka-common-env # Use the common environment
+      KAFKA_BROKER_ID: 1
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT_INTERNAL://kafka1:9092,PLAINTEXT_EXTERNAL://localhost:29092
+    volumes:
+      # Add volume for data persistence
+      - kafka1_data:/var/lib/kafka/data
+    networks:
+      - kafka-network
+    healthcheck:
+      # Improvement: Add healthcheck for reliability
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+
+  kafka2:
+    image: confluentinc/cp-kafka:7.5.3
+    container_name: kafka2
+    ports:
+      - "29093:29093"
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      <<: *kafka-common-env # Use the common environment
+      KAFKA_BROKER_ID: 2
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT_INTERNAL://kafka2:9092,PLAINTEXT_EXTERNAL://localhost:29093
+    volumes:
+      - kafka2_data:/var/lib/kafka/data
+    networks:
+      - kafka-network
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  kafka3:
+    image: confluentinc/cp-kafka:7.5.3
+    container_name: kafka3
+    ports:
+      - "29094:29094"
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      <<: *kafka-common-env # Use the common environment
+      KAFKA_BROKER_ID: 3
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT_INTERNAL://kafka3:9092,PLAINTEXT_EXTERNAL://localhost:29094
+      # Typo Correction: Was "KAFA_DEFAULT_REPLICATION_FACTOR"
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+    volumes:
+      - kafka3_data:/var/lib/kafka/data
+    networks:
+      - kafka-network
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  kafdrop:
+    image: obsidiandynamics/kafdrop:latest
+    container_name: kafdrop
+    ports:
+      - "19000:9000"
+    depends_on:
+      # Wait for all brokers to be started
+      - kafka1
+      - kafka2
+      - kafka3
+    environment:
+      # Improvement: Modern Kafdrop configuration
+      KAFKA_BROKERCONNECT: "kafka1:9092,kafka2:9092,kafka3:9092"
+      JVM_OPTS: "-Xms32M -Xmx64M"
+      SERVER_SERVLET_CONTEXTPATH: "/"
+    networks:
+      - kafka-network
+
+# Improvement: Define named volumes for data persistence
+volumes:
+  zookeeper_data:
+  zookeeper_log:
+  kafka1_data:
+  kafka2_data:
+  kafka3_data:
+
+networks:
+  kafka-network:
+    driver: bridge
