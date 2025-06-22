@@ -25,3 +25,5 @@ app:
     consumer:
       payment-request:
         group-id: payment-request-consumer-group
+        trusted-packages: "ch.ruyalabs.springkafkalab.dto"
+        auto-offset-reset: "earliest"
