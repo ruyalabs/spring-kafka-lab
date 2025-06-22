@@ -1,6 +1,7 @@
 package ch.ruyalabs.springkafkalab.config;
 
 import ch.ruyalabs.springkafkalab.dto.PaymentDto;
+import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,7 +18,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Configuration
+@RequiredArgsConstructor
 public class KafkaConsumerConfig {
+
+    private final PaymentRequestErrorHandler paymentRequestErrorHandler;
 
     @Value("${spring.kafka.bootstrap-servers}")
     private String bootstrapServers;
@@ -53,7 +57,7 @@ public class KafkaConsumerConfig {
         ConcurrentKafkaListenerContainerFactory<String, PaymentDto> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(paymentRequestConsumerFactory());
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
-        factory.setCommonErrorHandler(new org.springframework.kafka.listener.DefaultErrorHandler());
+        factory.setCommonErrorHandler(paymentRequestErrorHandler);
         return factory;
     }
 }
