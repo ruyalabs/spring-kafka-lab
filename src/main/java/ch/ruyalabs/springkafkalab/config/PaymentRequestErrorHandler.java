@@ -149,9 +149,23 @@ public class PaymentRequestErrorHandler extends DefaultErrorHandler {
                             net.logstash.logback.argument.StructuredArguments.kv("paymentId", paymentDto.getPaymentId()),
                             net.logstash.logback.argument.StructuredArguments.kv("customerId", paymentDto.getCustomerId()));
                 } else {
-                    log.error("Could not extract PaymentDto from failed record",
-                            net.logstash.logback.argument.StructuredArguments.kv("event", "payment_dto_extraction_failed"),
-                            net.logstash.logback.argument.StructuredArguments.kv("reason", "unable_to_extract_payment_dto"));
+                    // Handle case where PaymentDto could not be extracted (e.g., DeserializationException)
+                    if (exception instanceof DeserializationException) {
+                        // Log the raw message for manual investigation
+                        logRawMessage(record, exception);
+
+                        // Send a generic error response since we can't parse the original request
+                        String errorMessage = "Message deserialization failed: " + exception.getMessage();
+                        paymentResponseProducer.sendGenericDeserializationErrorResponse(errorMessage);
+
+                        log.info("Generic error response sent for deserialization failure",
+                                net.logstash.logback.argument.StructuredArguments.kv("event", "generic_error_response_sent"),
+                                net.logstash.logback.argument.StructuredArguments.kv("reason", "deserialization_failure"));
+                    } else {
+                        log.error("Could not extract PaymentDto from failed record",
+                                net.logstash.logback.argument.StructuredArguments.kv("event", "payment_dto_extraction_failed"),
+                                net.logstash.logback.argument.StructuredArguments.kv("reason", "unable_to_extract_payment_dto"));
+                    }
                 }
             } catch (Exception e) {
                 log.error("Exception occurred while sending error response in recoverer",
@@ -209,6 +223,46 @@ public class PaymentRequestErrorHandler extends DefaultErrorHandler {
             }
 
             return errorMsg.toString();
+        }
+
+        private void logRawMessage(ConsumerRecord<?, ?> record, Exception exception) {
+            try {
+                // Log the raw message bytes for manual investigation
+                byte[] rawValue = null;
+                if (record.value() instanceof byte[]) {
+                    rawValue = (byte[]) record.value();
+                } else if (record.value() != null) {
+                    rawValue = record.value().toString().getBytes();
+                }
+
+                String rawValueHex = rawValue != null ? bytesToHex(rawValue) : "null";
+                String rawValueString = rawValue != null ? new String(rawValue) : "null";
+
+                log.error("Raw message content for manual investigation",
+                        net.logstash.logback.argument.StructuredArguments.kv("event", "raw_message_log"),
+                        net.logstash.logback.argument.StructuredArguments.kv("topic", record.topic()),
+                        net.logstash.logback.argument.StructuredArguments.kv("partition", record.partition()),
+                        net.logstash.logback.argument.StructuredArguments.kv("offset", record.offset()),
+                        net.logstash.logback.argument.StructuredArguments.kv("key", record.key()),
+                        net.logstash.logback.argument.StructuredArguments.kv("rawValueHex", rawValueHex),
+                        net.logstash.logback.argument.StructuredArguments.kv("rawValueString", rawValueString),
+                        net.logstash.logback.argument.StructuredArguments.kv("rawValueLength", rawValue != null ? rawValue.length : 0),
+                        net.logstash.logback.argument.StructuredArguments.kv("exceptionType", exception.getClass().getSimpleName()),
+                        net.logstash.logback.argument.StructuredArguments.kv("exceptionMessage", exception.getMessage()));
+            } catch (Exception e) {
+                log.error("Failed to log raw message content",
+                        net.logstash.logback.argument.StructuredArguments.kv("event", "raw_message_log_failed"),
+                        net.logstash.logback.argument.StructuredArguments.kv("errorType", e.getClass().getSimpleName()),
+                        net.logstash.logback.argument.StructuredArguments.kv("errorMessage", e.getMessage()));
+            }
+        }
+
+        private String bytesToHex(byte[] bytes) {
+            StringBuilder result = new StringBuilder();
+            for (byte b : bytes) {
+                result.append(String.format("%02x", b));
+            }
+            return result.toString();
         }
     }
 }

@@ -47,4 +47,24 @@ class PaymentErrorRecoveryTest {
             fail("Non-transactional error response sending should work without transaction context issues: " + e.getMessage());
         }
     }
+
+    @Test
+    void testGenericDeserializationErrorResponse() throws Exception {
+        System.out.println("[DEBUG_LOG] Starting generic deserialization error response test");
+
+        try {
+            System.out.println("[DEBUG_LOG] Sending generic error response for deserialization failure");
+
+            // Test the new method for handling deserialization failures
+            paymentResponseProducer.sendGenericDeserializationErrorResponse("Test deserialization error: malformed JSON");
+
+            System.out.println("[DEBUG_LOG] Generic error response sent successfully");
+            System.out.println("[DEBUG_LOG] Test completed successfully - generic deserialization error response works");
+
+        } catch (Exception e) {
+            System.out.println("[DEBUG_LOG] Test failed with exception: " + e.getMessage());
+            e.printStackTrace();
+            fail("Generic deserialization error response sending should work: " + e.getMessage());
+        }
+    }
 }

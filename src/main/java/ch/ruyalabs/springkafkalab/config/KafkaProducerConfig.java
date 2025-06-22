@@ -54,6 +54,13 @@ public class KafkaProducerConfig {
         return template;
     }
 
+    /**
+     * Non-transactional producer factory for error recovery scenarios.
+     * This producer is used when the main transactional producer fails and we need to send
+     * error responses or recovery messages. Since error handling occurs outside the main
+     * transaction context, we need a separate non-transactional producer to avoid
+     * transaction-related issues during error recovery.
+     */
     @Bean
     public ProducerFactory<String, PaymentResponseDto> nonTransactionalPaymentResponseProducerFactory() {
         Map<String, Object> configProps = new HashMap<>();
@@ -68,6 +75,12 @@ public class KafkaProducerConfig {
         return new DefaultKafkaProducerFactory<>(configProps);
     }
 
+    /**
+     * Non-transactional Kafka template for error recovery scenarios.
+     * This template uses the non-transactional producer factory and is specifically
+     * designed for sending error responses and recovery messages when the main
+     * transactional processing fails.
+     */
     @Bean
     public KafkaTemplate<String, PaymentResponseDto> nonTransactionalPaymentResponseKafkaTemplate() {
         return new KafkaTemplate<>(nonTransactionalPaymentResponseProducerFactory());

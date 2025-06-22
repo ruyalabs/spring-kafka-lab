@@ -46,6 +46,7 @@ public class KafkaConsumerConfig {
         ConcurrentKafkaListenerContainerFactory<String, PaymentDto> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(paymentRequestConsumerFactory());
         factory.setCommonErrorHandler(paymentRequestErrorHandler);
+        factory.setConcurrency(1);
         return factory;
     }
 }
