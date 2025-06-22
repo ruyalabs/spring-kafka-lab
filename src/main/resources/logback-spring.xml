@@ -1,32 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
-    
-    <!-- Console appender with JSON format -->
+
+    <!-- Console appender with readable format -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
-            <providers>
-                <timestamp>
-                    <timeZone>UTC</timeZone>
-                </timestamp>
-                <version/>
-                <logLevel/>
-                <message/>
-                <mdc/>
-                <arguments/>
-                <stackTrace/>
-                <pattern>
-                    <pattern>
-                        {
-                        "traceId": "%X{traceId:-}",
-                        "spanId": "%X{spanId:-}",
-                        "service": "spring-kafka-lab",
-                        "logger": "%logger",
-                        "thread": "%thread"
-                        }
-                    </pattern>
-                </pattern>
-            </providers>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n%X{traceId:+TraceId: %X{traceId} }%X{spanId:+SpanId: %X{spanId} }%rEx</pattern>
         </encoder>
     </appender>
 

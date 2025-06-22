@@ -45,10 +45,11 @@ app:
       transactional-id: "payment-response-producer"
     error-handler:
       retry:
-        initial-interval: 1000
-        multiplier: 2.0
-        max-interval: 30000
-        max-elapsed-time: 30000
+        initial-interval: 200         # Fast initial retry
+        multiplier: 1.5              # Moderate backoff growth
+        max-interval: 2000           # Cap at 2 seconds per retry
+        max-elapsed-time: 10000      # 10 seconds total as requested
+
   simulation:
     balance-check:
       simulate-insufficient-balance: false
