@@ -48,7 +48,7 @@ app:
         initial-interval: 1000
         multiplier: 2.0
         max-interval: 30000
-        max-elapsed-time: 300000
+        max-elapsed-time: 30000
   simulation:
     balance-check:
       simulate-insufficient-balance: false
