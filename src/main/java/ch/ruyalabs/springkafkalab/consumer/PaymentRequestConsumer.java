@@ -24,7 +24,7 @@ public class PaymentRequestConsumer {
             topics = "${app.kafka.topics.payment-request}", 
             containerFactory = "paymentRequestKafkaListenerContainerFactory"
     )
-    @Transactional(transactionManager = "kafkaTransactionManager")
+    @Transactional(transactionManager = "kafkaTransactionManager", rollbackFor = Exception.class)
     public void consume(@Payload @Valid PaymentDto paymentDto) 
             throws Exception {
 
