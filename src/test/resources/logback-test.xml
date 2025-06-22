@@ -1,17 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-    <!-- Simple console appender with text format for testing -->
-    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n%rEx</pattern>
-        </encoder>
-    </appender>
-
-    <!-- Set logging levels -->
-    <logger name="ch.ruyalabs.springkafkalab" level="DEBUG"/>
-    <logger name="org.springframework.kafka" level="WARN"/>
-    <logger name="org.apache.kafka" level="WARN"/>
-    <logger name="org.springframework" level="INFO"/>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
 
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>

@@ -17,13 +17,6 @@ spring:
   application:
     name: spring-kafka-lab
 
-logging:
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
-  level:
-    ch.ruyalabs.springkafkalab: INFO
-    org.springframework.kafka: WARN
-    org.apache.kafka: WARN
 
 app:
   kafka:
@@ -46,7 +39,7 @@ app:
     error-handler:
       retry:
         initial-interval: 200         # Fast initial retry
-        multiplier: 1.5              # Moderate backoff growth
+        multiplier: 2.0              # Moderate backoff growth
         max-interval: 2000           # Cap at 2 seconds per retry
         max-elapsed-time: 10000      # 10 seconds total as requested
 
