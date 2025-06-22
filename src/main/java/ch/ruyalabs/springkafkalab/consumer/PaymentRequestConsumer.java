@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class PaymentRequestConsumer {
 
-    @KafkaListener(topics = "payment-request", groupId = "payment-request-consumer-group")
+    @KafkaListener(topics = "${app.kafka.topics.payment-request}", groupId = "${app.kafka.consumer.payment-request.group-id}")
     public void consume(PaymentDto paymentDto) {
         log.info("Consumed PaymentDto from payment-request topic: {}", paymentDto);
     }

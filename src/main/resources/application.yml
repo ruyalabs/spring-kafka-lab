@@ -8,3 +8,11 @@ spring:
         spring.json.trusted.packages: "ch.ruyalabs.springkafkalab.dto"
   application:
     name: spring-kafka-lab
+
+app:
+  kafka:
+    topics:
+      payment-request: payment-request
+    consumer:
+      payment-request:
+        group-id: payment-request-consumer-group
