@@ -21,6 +21,7 @@ app:
   kafka:
     topics:
       payment-request: payment-request
+      payment-response: payment-response
     consumer:
       payment-request:
         group-id: payment-request-consumer-group
