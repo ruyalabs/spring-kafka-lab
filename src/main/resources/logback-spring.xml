@@ -2,14 +2,14 @@
 <configuration>
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
 
-    <!-- Console appender with readable format -->
+    <!-- Console appender with simple readable format -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n%X{traceId:+TraceId: %X{traceId} }%X{spanId:+SpanId: %X{spanId} }%rEx</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n%rEx</pattern>
         </encoder>
     </appender>
 
-    <!-- File appender with JSON format -->
+    <!-- File appender with simple text format -->
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>logs/spring-kafka-lab.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
@@ -20,28 +20,8 @@
             <maxHistory>30</maxHistory>
             <totalSizeCap>3GB</totalSizeCap>
         </rollingPolicy>
-        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
-            <providers>
-                <timestamp>
-                    <timeZone>UTC</timeZone>
-                </timestamp>
-                <version/>
-                <logLevel/>
-                <message/>
-                <arguments/>
-                <stackTrace/>
-                <pattern>
-                    <pattern>
-                        {
-                        "traceId": "%X{traceId:-}",
-                        "spanId": "%X{spanId:-}",
-                        "service": "spring-kafka-lab",
-                        "logger": "%logger",
-                        "thread": "%thread"
-                        }
-                    </pattern>
-                </pattern>
-            </providers>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n%rEx</pattern>
         </encoder>
     </appender>
 

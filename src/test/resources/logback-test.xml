@@ -1,25 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-    <!-- Simple console appender with JSON format for testing -->
+    <!-- Simple console appender with text format for testing -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
-            <providers>
-                <timestamp>
-                    <timeZone>UTC</timeZone>
-                </timestamp>
-                <logLevel/>
-                <message/>
-                <arguments/>
-                <pattern>
-                    <pattern>
-                        {
-                        "service": "spring-kafka-lab-test",
-                        "logger": "%logger",
-                        "thread": "%thread"
-                        }
-                    </pattern>
-                </pattern>
-            </providers>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n%rEx</pattern>
         </encoder>
     </appender>
 
