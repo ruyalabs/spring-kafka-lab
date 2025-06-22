@@ -34,8 +34,8 @@ services:
     networks:
       - kafka-network
     healthcheck:
-      # Improvement: Add healthcheck for reliability
-      test: ["CMD-SHELL", "echo 'ruok' | nc localhost 2181 | grep imok"]
+      # FIX: Use Confluent's built-in tool to check if ZooKeeper is ready.
+      test: ["CMD-SHELL", "cub zk-ready localhost:2181 30"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -58,8 +58,8 @@ services:
     networks:
       - kafka-network
     healthcheck:
-      # Improvement: Add healthcheck for reliability
-      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      # IMPROVEMENT: Use Confluent's built-in tool for a more robust Kafka healthcheck.
+      test: ["CMD-SHELL", "cub kafka-ready -b localhost:9092 1 30"]
       interval: 15s
       timeout: 10s
       retries: 10
@@ -82,7 +82,8 @@ services:
     networks:
       - kafka-network
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      # IMPROVEMENT: Use Confluent's built-in tool for a more robust Kafka healthcheck.
+      test: ["CMD-SHELL", "cub kafka-ready -b localhost:9092 1 30"]
       interval: 15s
       timeout: 10s
       retries: 10
@@ -99,14 +100,13 @@ services:
       <<: *kafka-common-env # Use the common environment
       KAFKA_BROKER_ID: 3
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT_INTERNAL://kafka3:9092,PLAINTEXT_EXTERNAL://localhost:29094
-      # Typo Correction: Was "KAFA_DEFAULT_REPLICATION_FACTOR"
-      KAFKA_DEFAULT_REPLICATION_FACTOR: 3
     volumes:
       - kafka3_data:/var/lib/kafka/data
     networks:
       - kafka-network
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      # IMPROVEMENT: Use Confluent's built-in tool for a more robust Kafka healthcheck.
+      test: ["CMD-SHELL", "cub kafka-ready -b localhost:9092 1 30"]
       interval: 15s
       timeout: 10s
       retries: 10
@@ -117,12 +117,13 @@ services:
     ports:
       - "19000:9000"
     depends_on:
-      # Wait for all brokers to be started
-      - kafka1
-      - kafka2
-      - kafka3
+      kafka1:
+        condition: service_healthy
+      kafka2:
+        condition: service_healthy
+      kafka3:
+        condition: service_healthy
     environment:
-      # Improvement: Modern Kafdrop configuration
       KAFKA_BROKERCONNECT: "kafka1:9092,kafka2:9092,kafka3:9092"
       JVM_OPTS: "-Xms32M -Xmx64M"
       SERVER_SERVLET_CONTEXTPATH: "/"
