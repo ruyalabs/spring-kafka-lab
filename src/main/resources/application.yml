@@ -1,5 +1,10 @@
 spring:
   kafka:
     bootstrap-servers: localhost:29092,localhost:29093,localhost:29094
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "ch.ruyalabs.springkafkalab.dto"
   application:
     name: spring-kafka-lab
