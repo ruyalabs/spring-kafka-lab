@@ -4,8 +4,8 @@ info:
   description: Title
   version: 1.0.0
 servers:
-  - url: 'https'
-paths:
+  - url: 'https://api.example.com'
+paths: {}
 components:
   schemas:
     PaymentDto:
