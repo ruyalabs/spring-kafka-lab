@@ -22,7 +22,7 @@ class PaymentErrorRecoveryTest {
 
     @Test
     void testErrorResponseSendingInTransaction() throws Exception {
-        System.out.println("[DEBUG_LOG] Starting error recovery transaction test");
+        System.out.println("[DEBUG_LOG] Starting error recovery non-transactional test");
 
         // Create a test PaymentDto
         PaymentDto paymentDto = new PaymentDto()
@@ -33,18 +33,18 @@ class PaymentErrorRecoveryTest {
                 .paymentMethod(PaymentDto.PaymentMethodEnum.CREDIT_CARD);
 
         try {
-            System.out.println("[DEBUG_LOG] Sending error response using sendErrorResponse method");
+            System.out.println("[DEBUG_LOG] Sending error response using sendErrorResponseNonTransactional method");
 
-            // This should work without transaction context issues
-            paymentResponseProducer.sendErrorResponse(paymentDto, "Test error message for transaction context");
+            // This should work without transaction context issues (used by recoverer)
+            paymentResponseProducer.sendErrorResponseNonTransactional(paymentDto, "Test error message for recovery context");
 
-            System.out.println("[DEBUG_LOG] Error response sent successfully");
-            System.out.println("[DEBUG_LOG] Test completed successfully - transaction context issue resolved");
+            System.out.println("[DEBUG_LOG] Error response sent successfully using non-transactional method");
+            System.out.println("[DEBUG_LOG] Test completed successfully - non-transactional error recovery works");
 
         } catch (Exception e) {
             System.out.println("[DEBUG_LOG] Test failed with exception: " + e.getMessage());
             e.printStackTrace();
-            fail("Error response sending should work without transaction context issues: " + e.getMessage());
+            fail("Non-transactional error response sending should work without transaction context issues: " + e.getMessage());
         }
     }
 }

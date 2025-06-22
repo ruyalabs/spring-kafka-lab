@@ -36,7 +36,12 @@ public class PaymentResponseProducer {
 
     public void sendErrorResponse(PaymentDto originalRequest, String errorMessage) throws Exception {
         PaymentResponseDto response = createErrorResponse(originalRequest, errorMessage);
-        sendResponseInTransaction(response, originalRequest.getPaymentId());
+        sendResponse(response, originalRequest.getPaymentId());
+    }
+
+    public void sendErrorResponseNonTransactional(PaymentDto originalRequest, String errorMessage) throws Exception {
+        PaymentResponseDto response = createErrorResponse(originalRequest, errorMessage);
+        sendResponseNonTransactional(response, originalRequest.getPaymentId());
     }
 
     private PaymentResponseDto createSuccessResponse(PaymentDto originalRequest) {
@@ -101,17 +106,17 @@ public class PaymentResponseProducer {
         }
     }
 
-    private void sendResponseInTransaction(PaymentResponseDto response, String paymentId) throws Exception {
+    private void sendResponseNonTransactional(PaymentResponseDto response, String paymentId) throws Exception {
         // Set MDC context for structured logging
         MDC.put("paymentId", paymentId);
         MDC.put("customerId", response.getCustomerId());
         MDC.put("status", response.getStatus().toString());
         MDC.put("topic", paymentResponseTopic);
-        MDC.put("operation", "payment_response_sending");
+        MDC.put("operation", "payment_response_sending_non_transactional");
 
         try {
             log.info("Sending payment response to Kafka topic using non-transactional template",
-                    net.logstash.logback.argument.StructuredArguments.kv("event", "payment_response_sending"),
+                    net.logstash.logback.argument.StructuredArguments.kv("event", "payment_response_sending_non_transactional"),
                     net.logstash.logback.argument.StructuredArguments.kv("paymentId", paymentId),
                     net.logstash.logback.argument.StructuredArguments.kv("status", response.getStatus()),
                     net.logstash.logback.argument.StructuredArguments.kv("topic", paymentResponseTopic),
@@ -121,15 +126,15 @@ public class PaymentResponseProducer {
             SendResult<String, PaymentResponseDto> result =
                     nonTransactionalKafkaTemplate.send(paymentResponseTopic, paymentId, response).get();
 
-            log.info("Payment response sent successfully to Kafka topic",
-                    net.logstash.logback.argument.StructuredArguments.kv("event", "payment_response_sent"),
+            log.info("Payment response sent successfully to Kafka topic using non-transactional template",
+                    net.logstash.logback.argument.StructuredArguments.kv("event", "payment_response_sent_non_transactional"),
                     net.logstash.logback.argument.StructuredArguments.kv("paymentId", paymentId),
                     net.logstash.logback.argument.StructuredArguments.kv("topic", paymentResponseTopic),
                     net.logstash.logback.argument.StructuredArguments.kv("offset", result.getRecordMetadata().offset()),
                     net.logstash.logback.argument.StructuredArguments.kv("partition", result.getRecordMetadata().partition()));
         } catch (Exception e) {
-            log.error("Failed to send payment response to Kafka topic",
-                    net.logstash.logback.argument.StructuredArguments.kv("event", "payment_response_send_failed"),
+            log.error("Failed to send payment response to Kafka topic using non-transactional template",
+                    net.logstash.logback.argument.StructuredArguments.kv("event", "payment_response_send_failed_non_transactional"),
                     net.logstash.logback.argument.StructuredArguments.kv("paymentId", paymentId),
                     net.logstash.logback.argument.StructuredArguments.kv("topic", paymentResponseTopic),
                     net.logstash.logback.argument.StructuredArguments.kv("errorMessage", e.getMessage()),

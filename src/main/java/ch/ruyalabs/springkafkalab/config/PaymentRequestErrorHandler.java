@@ -143,7 +143,7 @@ public class PaymentRequestErrorHandler extends DefaultErrorHandler {
                     MDC.put("customerId", paymentDto.getCustomerId());
 
                     String errorMessage = buildErrorMessage(exception);
-                    paymentResponseProducer.sendErrorResponse(paymentDto, errorMessage);
+                    paymentResponseProducer.sendErrorResponseNonTransactional(paymentDto, errorMessage);
                     log.info("Error response sent successfully for failed payment",
                             net.logstash.logback.argument.StructuredArguments.kv("event", "error_response_sent"),
                             net.logstash.logback.argument.StructuredArguments.kv("paymentId", paymentDto.getPaymentId()),
