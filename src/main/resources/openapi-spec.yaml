@@ -75,3 +75,53 @@ components:
           type: string
           description: Identifier of the customer making the payment
           example: "customer_xyz789"
+    PaymentResponseDto:
+      type: object
+      required:
+        - paymentId
+        - amount
+        - currency
+        - paymentMethod
+        - customerId
+        - status
+      properties:
+        paymentId:
+          type: string
+          description: Unique identifier for the payment
+          example: "pay_1234567890abcdef"
+        amount:
+          type: number
+          format: double
+          description: Payment amount in the specified currency
+          minimum: 0.01
+          example: 99.99
+        currency:
+          type: string
+          description: ISO 4217 currency code
+          pattern: "^[A-Z]{3}$"
+          example: "USD"
+        paymentMethod:
+          type: string
+          description: Method used for payment
+          enum:
+            - CREDIT_CARD
+            - DEBIT_CARD
+            - BANK_TRANSFER
+            - PAYPAL
+            - APPLE_PAY
+            - GOOGLE_PAY
+          example: "CREDIT_CARD"
+        customerId:
+          type: string
+          description: Identifier of the customer making the payment
+          example: "customer_xyz789"
+        status:
+          type: string
+          description: Payment processing status
+          enum:
+            - success
+            - error
+          example: "success"
+        errorInfo:
+          type: string
+          description: Error information when status is error
