@@ -46,12 +46,6 @@ app:
       acks: "1"
       retries: 0
       enable-idempotence: false
-    error-handler:
-      retry:
-        initial-interval: 100
-        multiplier: 1.5
-        max-interval: 1000
-        max-elapsed-time: 5000
   simulation:
     balance-check:
       simulate-insufficient-balance: false

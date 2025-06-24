@@ -37,26 +37,20 @@ app:
       enable-idempotence: true
       transactional-id: "payment-response-producer"
       transaction-timeout-ms: 120000
-    error-handler:
-      retry:
-        initial-interval: 2000 # 2 seconds
-        multiplier: 2.0
-        max-interval: 8000 # e.g., 8 seconds
-        max-elapsed-time: 15000 # e.g., 15 seconds
 
   simulation:
     balance-check:
-      # NON-RETRYABLE EXCEPTIONS (Business Logic Errors - Will NOT be retried)
+      # BUSINESS LOGIC EXCEPTIONS
       simulate-insufficient-balance: false          # Throws: InsufficientBalanceException
       simulate-account-not-found: false             # Throws: AccountNotFoundException
 
-      # RETRYABLE EXCEPTIONS (Infrastructure/Temporary Issues - Will be retried)
+      # INFRASTRUCTURE/TEMPORARY EXCEPTIONS
       simulate-service-unavailable: false            # Throws: ServiceUnavailableException
 
     payment-execution:
-      # NON-RETRYABLE EXCEPTIONS (Business Logic Errors - Will NOT be retried)
+      # BUSINESS LOGIC EXCEPTIONS
       simulate-payment-processing-exception: false  # Throws: PaymentProcessingException
       simulate-invalid-payment-method-exception: false # Throws: InvalidPaymentMethodException
 
-      # RETRYABLE EXCEPTIONS (Infrastructure/Temporary Issues - Will be retried)
+      # INFRASTRUCTURE/TEMPORARY EXCEPTIONS
       simulate-gateway-timeout-exception: false     # Throws: GatewayTimeoutException
