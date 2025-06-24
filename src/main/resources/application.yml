@@ -36,6 +36,7 @@ app:
       retries: 3
       enable-idempotence: true
       transactional-id: "payment-response-producer"
+      transaction-timeout-ms: 120000
     error-handler:
       retry:
         initial-interval: 2000

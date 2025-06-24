@@ -33,6 +33,9 @@ public class KafkaProducerConfig {
     @Value("${app.kafka.producer.transactional-id}")
     private String transactionalId;
 
+    @Value("${app.kafka.producer.transaction-timeout-ms}")
+    private int transactionTimeoutMs;
+
     @Bean
     public ProducerFactory<String, PaymentResponseDto> paymentResponseProducerFactory() {
         Map<String, Object> configProps = new HashMap<>();
@@ -43,12 +46,13 @@ public class KafkaProducerConfig {
         configProps.put(ProducerConfig.RETRIES_CONFIG, retries);
         configProps.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, enableIdempotence);
         configProps.put(ProducerConfig.TRANSACTIONAL_ID_CONFIG, transactionalId);
+        configProps.put(ProducerConfig.TRANSACTION_TIMEOUT_CONFIG, transactionTimeoutMs);
 
         return new DefaultKafkaProducerFactory<>(configProps);
     }
 
     @Bean
-    public KafkaTemplate<String, PaymentResponseDto> paymentResponseKafkaTemplate() {
+    public KafkaTemplate<String, PaymentResponseDto> transactionalKafkaTemplate() {
         KafkaTemplate<String, PaymentResponseDto> template = new KafkaTemplate<>(paymentResponseProducerFactory());
         return template;
     }
@@ -68,7 +72,7 @@ public class KafkaProducerConfig {
     }
 
     @Bean
-    public KafkaTemplate<String, PaymentResponseDto> nonTransactionalPaymentResponseKafkaTemplate() {
+    public KafkaTemplate<String, PaymentResponseDto> nonTransactionalKafkaTemplate() {
         return new KafkaTemplate<>(nonTransactionalPaymentResponseProducerFactory());
     }
 

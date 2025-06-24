@@ -13,6 +13,8 @@ x-kafka-common-env: &kafka-common-env
   KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 3000
   KAFKA_DEFAULT_REPLICATION_FACTOR: 3
   KAFKA_MIN_INSYNC_REPLICAS: 2
+  # Transaction timeout configuration - must be >= producer transaction timeout
+  KAFKA_TRANSACTION_MAX_TIMEOUT_MS: 120000
   # Set JVM Heap Options
   KAFKA_HEAP_OPTS: "-Xms512M -Xmx512M"
 

@@ -18,8 +18,8 @@ public class PaymentResponseProducer {
     private final KafkaTemplate<String, PaymentResponseDto> nonTransactionalKafkaTemplate;
 
     public PaymentResponseProducer(
-            @Qualifier("paymentResponseKafkaTemplate") KafkaTemplate<String, PaymentResponseDto> kafkaTemplate,
-            @Qualifier("nonTransactionalPaymentResponseKafkaTemplate") KafkaTemplate<String, PaymentResponseDto> nonTransactionalKafkaTemplate) {
+            @Qualifier("transactionalKafkaTemplate") KafkaTemplate<String, PaymentResponseDto> kafkaTemplate,
+            @Qualifier("nonTransactionalKafkaTemplate") KafkaTemplate<String, PaymentResponseDto> nonTransactionalKafkaTemplate) {
         this.kafkaTemplate = kafkaTemplate;
         this.nonTransactionalKafkaTemplate = nonTransactionalKafkaTemplate;
     }
