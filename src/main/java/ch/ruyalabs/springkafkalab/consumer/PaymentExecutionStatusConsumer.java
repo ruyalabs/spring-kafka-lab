@@ -95,6 +95,17 @@ public class PaymentExecutionStatusConsumer {
 
     /**
      * Send pending response asynchronously after transaction commit
+     * 
+     * IMPORTANT: This method introduces a risk of lost responses if the application
+     * crashes after the Kafka consumer transaction commits but before the response
+     * is successfully sent. This is a known limitation given the constraints:
+     * - No Dead Letter Queue (DLQ)
+     * - No retries allowed
+     * - Exactly one response requirement
+     * 
+     * The processPendingResponsesOnStartup() method attempts to mitigate this risk
+     * by resending pending responses on application restart, but it cannot guarantee
+     * 100% reliability in all crash scenarios.
      */
     @Async
     public void sendPendingResponseAsync(String paymentId) {
@@ -119,16 +130,29 @@ public class PaymentExecutionStatusConsumer {
                     paymentId, result.isSuccess() ? "success" : "error");
 
         } catch (Exception e) {
-            log.error("Failed to send payment response after transaction commit - PaymentId: {}, ErrorMessage: {}, ErrorType: {}. " +
-                            "Response will remain in pending state for retry on next startup.",
+            log.error("CRITICAL: Failed to send payment response after transaction commit - PaymentId: {}, ErrorMessage: {}, ErrorType: {}. " +
+                            "This violates the exactly-one-response guarantee. Response will remain in pending state for retry on next startup, " +
+                            "but there is a risk of permanent response loss if the failure persists.",
                     paymentId, e.getMessage(), e.getClass().getSimpleName(), e);
             // Note: We don't remove from pendingResponses so it can be retried on startup
+            // However, if the failure is persistent (e.g., Kafka broker down permanently),
+            // the response may never be sent, violating the "no request may go unanswered" rule
         }
     }
 
     /**
      * Process any pending responses on application startup
      * This handles cases where the application restarted after consuming messages but before sending responses
+     * 
+     * IMPORTANT: This method provides a best-effort attempt to recover from application crashes
+     * that occur after Kafka transaction commit but before response sending. However, it cannot
+     * guarantee 100% reliability:
+     * - If the application crashes during this startup process, responses may still be lost
+     * - If response sending fails persistently (e.g., due to Kafka broker issues), responses
+     *   will remain in pending state indefinitely
+     * - The pendingResponses map is in-memory only, so it's lost on application restart
+     * 
+     * This is a known limitation given the constraints of no DLQ and no retries.
      */
     @EventListener(ApplicationReadyEvent.class)
     public void processPendingResponsesOnStartup() {
@@ -137,12 +161,20 @@ public class PaymentExecutionStatusConsumer {
             return;
         }
 
-        log.info("Found {} pending responses on startup - processing them now", pendingResponses.size());
+        log.warn("RECOVERY: Found {} pending responses on startup - attempting to send them now. " +
+                "This indicates the application previously crashed after consuming messages but before sending responses.",
+                pendingResponses.size());
 
         // Process all pending responses
         for (String paymentId : pendingResponses.keySet()) {
-            log.info("Processing pending response on startup - PaymentId: {}", paymentId);
-            sendPendingResponseAsync(paymentId);
+            log.info("RECOVERY: Processing pending response on startup - PaymentId: {}", paymentId);
+            try {
+                sendPendingResponseAsync(paymentId);
+            } catch (Exception e) {
+                log.error("RECOVERY: Failed to process pending response on startup - PaymentId: {}, ErrorMessage: {}, ErrorType: {}",
+                        paymentId, e.getMessage(), e.getClass().getSimpleName(), e);
+                // Continue processing other pending responses even if one fails
+            }
         }
     }
 

@@ -14,6 +14,22 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Payment Request Consumer
+ * 
+ * This consumer implements a strict "no retries" policy to meet the following requirements:
+ * - All listeners must not implement any retries
+ * - No partition should ever be blocked (resilience to poison pills)
+ * - Exactly one response per request
+ * - No request may go unanswered
+ * 
+ * IMPORTANT BUSINESS IMPLICATIONS:
+ * - Temporary service failures (e.g., ServiceUnavailableException) result in immediate
+ *   and permanent payment failures without retry attempts
+ * - Business stakeholders should be aware that temporary external service outages
+ *   will result in permanent payment failures
+ * - This is the only possible implementation given the "no retries" constraint
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -60,7 +76,11 @@ public class PaymentRequestConsumer {
                     paymentDto.getPaymentId(), paymentDto.getCustomerId(), e.getMessage());
             paymentResponseProducer.sendErrorResponse(paymentDto, e.getMessage());
         } catch (ServiceUnavailableException e) {
-            log.error("Payment request failed due to service unavailable - PaymentId: {}, CustomerId: {}, ErrorMessage: {}",
+            // IMPORTANT: According to the "no retries" policy, temporary service unavailability
+            // results in immediate and permanent payment failure. Business stakeholders should
+            // be aware that temporary external service outages will result in permanent payment failures.
+            log.error("Payment request failed due to service unavailable - PaymentId: {}, CustomerId: {}, ErrorMessage: {}. " +
+                    "This is a permanent failure due to no-retry policy.",
                     paymentDto.getPaymentId(), paymentDto.getCustomerId(), e.getMessage());
             paymentResponseProducer.sendErrorResponse(paymentDto, e.getMessage());
         } catch (Exception e) {

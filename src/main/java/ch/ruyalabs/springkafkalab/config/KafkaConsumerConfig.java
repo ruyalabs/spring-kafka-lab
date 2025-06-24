@@ -78,11 +78,13 @@ public class KafkaConsumerConfig {
                     } catch (Exception e) {
                         log.error("CRITICAL: Failed to send error response - Topic: {}, Partition: {}, Offset: {}, Key: {}, " +
                                         "OriginalErrorType: {}, OriginalErrorMessage: {}, SendErrorType: {}, SendErrorMessage: {}. " +
-                                        "This violates the exactly-one-response guarantee. Throwing exception to prevent offset commit.",
+                                        "This violates the exactly-one-response guarantee. However, to prevent partition blocking " +
+                                        "and comply with no-retry policy, the message offset will be committed and processing will continue.",
                                 consumerRecord.topic(), consumerRecord.partition(), consumerRecord.offset(),
                                 consumerRecord.key(), exception.getClass().getSimpleName(), exception.getMessage(),
                                 e.getClass().getSimpleName(), e.getMessage(), e);
-                        throw new RuntimeException("Failed to send error response for payment request", e);
+                        // DO NOT throw exception - this would cause retries and partition blocking
+                        // Instead, log the critical error and allow offset commit to proceed
                     }
                 },
                 new FixedBackOff(0L, 0L)
@@ -127,11 +129,13 @@ public class KafkaConsumerConfig {
                     } catch (Exception e) {
                         log.error("CRITICAL: Failed to send error response for status message - Topic: {}, Partition: {}, Offset: {}, Key: {}, " +
                                         "OriginalErrorType: {}, OriginalErrorMessage: {}, SendErrorType: {}, SendErrorMessage: {}. " +
-                                        "This violates the exactly-one-response guarantee. Throwing exception to prevent offset commit.",
+                                        "This violates the exactly-one-response guarantee. However, to prevent partition blocking " +
+                                        "and comply with no-retry policy, the message offset will be committed and processing will continue.",
                                 consumerRecord.topic(), consumerRecord.partition(), consumerRecord.offset(),
                                 consumerRecord.key(), exception.getClass().getSimpleName(), exception.getMessage(),
                                 e.getClass().getSimpleName(), e.getMessage(), e);
-                        throw new RuntimeException("Failed to send error response for payment execution status", e);
+                        // DO NOT throw exception - this would cause retries and partition blocking
+                        // Instead, log the critical error and allow offset commit to proceed
                     }
                 },
                 new FixedBackOff(0L, 0L)
