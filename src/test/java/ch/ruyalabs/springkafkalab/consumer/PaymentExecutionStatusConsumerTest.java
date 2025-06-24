@@ -2,6 +2,7 @@ package ch.ruyalabs.springkafkalab.consumer;
 
 import ch.ruyalabs.springkafkalab.dto.PaymentDto;
 import ch.ruyalabs.springkafkalab.dto.PaymentExecutionStatusDto;
+import ch.ruyalabs.springkafkalab.event.PaymentResponseEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,11 +27,14 @@ class PaymentExecutionStatusConsumerTest {
     @Mock
     private NonTransactionalPaymentResponseProducer nonTransactionalPaymentResponseProducer;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private PaymentExecutionStatusConsumer consumer;
 
     @BeforeEach
     void setUp() {
-        consumer = new PaymentExecutionStatusConsumer(paymentResponseProducer, nonTransactionalPaymentResponseProducer);
+        consumer = new PaymentExecutionStatusConsumer(paymentResponseProducer, nonTransactionalPaymentResponseProducer, eventPublisher);
 
         // Clear static maps before each test
         PaymentExecutionStatusConsumer.clearAllPayments();
@@ -53,12 +57,6 @@ class PaymentExecutionStatusConsumerTest {
         // Add pending payment
         PaymentExecutionStatusConsumer.addPendingPayment(paymentId, paymentDto);
 
-        // Mock the async response producer to simulate a delay
-        doAnswer(invocation -> {
-            Thread.sleep(50); // Small delay to allow test to check intermediate state
-            return null;
-        }).when(nonTransactionalPaymentResponseProducer).sendSuccessResponse(any(PaymentDto.class));
-
         // Act
         consumer.consume(statusDto);
 
@@ -66,25 +64,22 @@ class PaymentExecutionStatusConsumerTest {
         assertEquals(0, PaymentExecutionStatusConsumer.getPendingPaymentsCount(), 
                 "Payment should be removed from pending after consumption");
 
-        // Give a moment for the async method to start but not complete
-        Thread.sleep(10);
+        // Verify that the event was published
+        verify(eventPublisher, times(1)).publishEvent(any(PaymentResponseEvent.class));
 
-        // Verify that pendingResponses contains the result (before async completion)
+        // Verify that pendingResponses contains the result
         ConcurrentHashMap<String, Object> pendingResponses = 
             (ConcurrentHashMap<String, Object>) ReflectionTestUtils.getField(consumer, "pendingResponses");
+        assertTrue(pendingResponses.containsKey(paymentId), 
+                "Payment should be in pending responses after consumption");
 
-        // The payment might be in SENDING state or already completed depending on timing
-        // Let's check if it was processed (either still pending or completed)
-        boolean wasProcessed = pendingResponses.containsKey(paymentId) || 
-                              PaymentExecutionStatusConsumer.getCompletedPaymentsCount() > 0;
-        assertTrue(wasProcessed, "Payment should have been processed (either pending or completed)");
-
-        // Wait for async processing to complete
-        Thread.sleep(100);
+        // Simulate the event listener by manually calling sendPendingResponseAsync
+        // (In real application, this would be called by the event listener after transaction commit)
+        consumer.sendPendingResponseAsync(paymentId);
 
         // Verify final state - should be completed and removed from pending
         assertEquals(1, PaymentExecutionStatusConsumer.getCompletedPaymentsCount(),
-                "Payment should be marked as completed after async processing");
+                "Payment should be marked as completed after response sending");
         assertFalse(pendingResponses.containsKey(paymentId),
                 "Payment should be removed from pending responses after completion");
     }
