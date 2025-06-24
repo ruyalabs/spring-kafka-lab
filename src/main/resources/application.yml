@@ -47,11 +47,3 @@ app:
 
       # INFRASTRUCTURE/TEMPORARY EXCEPTIONS
       simulate-service-unavailable: false            # Throws: ServiceUnavailableException
-
-    payment-execution:
-      # BUSINESS LOGIC EXCEPTIONS
-      simulate-payment-processing-exception: false  # Throws: PaymentProcessingException
-      simulate-invalid-payment-method-exception: false # Throws: InvalidPaymentMethodException
-
-      # INFRASTRUCTURE/TEMPORARY EXCEPTIONS
-      simulate-gateway-timeout-exception: false     # Throws: GatewayTimeoutException

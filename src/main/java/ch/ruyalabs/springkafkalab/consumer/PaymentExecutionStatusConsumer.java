@@ -20,8 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class PaymentExecutionStatusConsumer {
 
     private final PaymentResponseProducer paymentResponseProducer;
-    
-    // Store pending payment requests to match with execution status
+
     private static final ConcurrentHashMap<String, PaymentDto> pendingPayments = new ConcurrentHashMap<>();
 
     @KafkaListener(
@@ -41,16 +40,14 @@ public class PaymentExecutionStatusConsumer {
             return;
         }
 
-        // Retrieve the original payment request
         PaymentDto originalPayment = pendingPayments.remove(statusDto.getPaymentId());
-        
+
         if (originalPayment == null) {
-            log.warn("No pending payment found for PaymentId: {} - Status message may be duplicate or orphaned", 
+            log.warn("No pending payment found for PaymentId: {} - Status message may be duplicate or orphaned",
                     statusDto.getPaymentId());
             return;
         }
 
-        // Send response based on execution status
         if (PaymentExecutionStatusDto.StatusEnum.OK.equals(statusDto.getStatus())) {
             log.info("Payment execution successful - Status: success, PaymentId: {}, CustomerId: {}",
                     statusDto.getPaymentId(), originalPayment.getCustomerId());

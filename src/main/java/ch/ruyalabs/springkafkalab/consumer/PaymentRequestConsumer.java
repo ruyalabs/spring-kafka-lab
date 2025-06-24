@@ -3,6 +3,8 @@ package ch.ruyalabs.springkafkalab.consumer;
 import ch.ruyalabs.springkafkalab.client.BalanceCheckClient;
 import ch.ruyalabs.springkafkalab.client.PaymentExecutionClient;
 import ch.ruyalabs.springkafkalab.dto.PaymentDto;
+import ch.ruyalabs.springkafkalab.exception.AccountNotFoundException;
+import ch.ruyalabs.springkafkalab.exception.InsufficientBalanceException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,24 +46,32 @@ public class PaymentRequestConsumer {
             return;
         }
 
-        boolean balanceCheckResult = balanceCheckClient.checkBalance(
-                paymentDto.getCustomerId(),
-                paymentDto.getAmount()
-        );
+        try {
+            boolean balanceCheckResult = balanceCheckClient.checkBalance(
+                    paymentDto.getCustomerId(),
+                    paymentDto.getAmount()
+            );
 
-        if (balanceCheckResult) {
-            // Request payment execution (external system will handle actual execution)
-            paymentExecutionClient.requestPaymentExecution(paymentDto);
+            if (balanceCheckResult) {
+                paymentExecutionClient.requestPaymentExecution(paymentDto);
 
-            // Store pending payment to match with execution status later
-            PaymentExecutionStatusConsumer.addPendingPayment(paymentDto.getPaymentId(), paymentDto);
+                PaymentExecutionStatusConsumer.addPendingPayment(paymentDto.getPaymentId(), paymentDto);
 
-            log.info("Payment execution requested successfully - PaymentId: {}, CustomerId: {}, Status: pending_execution",
-                    paymentDto.getPaymentId(), paymentDto.getCustomerId());
-        } else {
-            log.info("Payment request skipped due to insufficient balance - Reason: insufficient_balance, CustomerId: {}, PaymentId: {}",
-                    paymentDto.getCustomerId(), paymentDto.getPaymentId());
-            paymentResponseProducer.sendErrorResponse(paymentDto, "Insufficient balance for payment");
+                log.info("Payment execution requested successfully - PaymentId: {}, CustomerId: {}, Status: pending_execution",
+                        paymentDto.getPaymentId(), paymentDto.getCustomerId());
+            } else {
+                log.info("Payment request skipped due to insufficient balance - Reason: insufficient_balance, CustomerId: {}, PaymentId: {}",
+                        paymentDto.getCustomerId(), paymentDto.getPaymentId());
+                paymentResponseProducer.sendErrorResponse(paymentDto, "Insufficient balance for payment");
+            }
+        } catch (InsufficientBalanceException e) {
+            log.warn("Payment request failed due to insufficient balance - PaymentId: {}, CustomerId: {}, ErrorMessage: {}",
+                    paymentDto.getPaymentId(), paymentDto.getCustomerId(), e.getMessage());
+            paymentResponseProducer.sendErrorResponse(paymentDto, e.getMessage());
+        } catch (AccountNotFoundException e) {
+            log.error("Payment request failed due to account not found - PaymentId: {}, CustomerId: {}, ErrorMessage: {}",
+                    paymentDto.getPaymentId(), paymentDto.getCustomerId(), e.getMessage());
+            paymentResponseProducer.sendErrorResponse(paymentDto, e.getMessage());
         }
     }
 
