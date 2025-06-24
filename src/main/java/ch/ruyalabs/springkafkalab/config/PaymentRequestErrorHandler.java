@@ -23,12 +23,16 @@ import java.security.NoSuchAlgorithmException;
 public class PaymentRequestErrorHandler extends DefaultErrorHandler {
 
     public PaymentRequestErrorHandler(PaymentResponseProducer paymentResponseProducer,
+                                      PaymentRequestRetryListener retryListener,
                                       @Value("${app.kafka.error-handler.retry.initial-interval}") long initialInterval,
                                       @Value("${app.kafka.error-handler.retry.multiplier}") double multiplier,
                                       @Value("${app.kafka.error-handler.retry.max-interval}") long maxInterval,
                                       @Value("${app.kafka.error-handler.retry.max-elapsed-time}") long maxElapsedTime) {
 
         super(new PaymentRequestRecoverer(paymentResponseProducer), createExponentialBackOff(initialInterval, multiplier, maxInterval, maxElapsedTime));
+
+        // Register the retry listener for enhanced logging
+        setRetryListeners(retryListener);
 
         addNotRetryableExceptions(
                 InsufficientBalanceException.class,
