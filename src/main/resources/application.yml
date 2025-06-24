@@ -51,7 +51,7 @@ app:
       simulate-account-not-found: false             # Throws: AccountNotFoundException
 
       # RETRYABLE EXCEPTIONS (Infrastructure/Temporary Issues - Will be retried)
-      simulate-service-unavailable: true            # Throws: ServiceUnavailableException
+      simulate-service-unavailable: false            # Throws: ServiceUnavailableException
 
     payment-execution:
       # NON-RETRYABLE EXCEPTIONS (Business Logic Errors - Will NOT be retried)

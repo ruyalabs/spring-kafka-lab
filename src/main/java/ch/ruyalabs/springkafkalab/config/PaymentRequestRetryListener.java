@@ -28,10 +28,9 @@ public class PaymentRequestRetryListener implements RetryListener {
         String exceptionType = ex.getClass().getSimpleName();
         boolean isRetryable = !isNonRetryableException(ex);
         String retryableStatus = isRetryable ? "RETRYABLE" : "NON_RETRYABLE";
-        
-        // Extract payment information if available
+
         String paymentInfo = extractPaymentInfo(record);
-        
+
         if (isRetryable) {
             log.warn("Retrying message for the {} time - Operation: retry_attempt, Topic: {}, Partition: {}, Offset: {}, Key: {}, RetryCount: {}, ExceptionType: {} ({}), ExceptionMessage: {}, {}",
                     getOrdinalNumber(deliveryAttempt), record.topic(), record.partition(), record.offset(), record.key(),
