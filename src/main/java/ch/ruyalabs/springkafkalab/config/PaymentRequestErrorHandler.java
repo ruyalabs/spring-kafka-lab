@@ -8,7 +8,6 @@ import ch.ruyalabs.springkafkalab.exception.InvalidPaymentMethodException;
 import ch.ruyalabs.springkafkalab.exception.PaymentProcessingException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.listener.ConsumerRecordRecoverer;
@@ -16,7 +15,6 @@ import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.DeserializationException;
 import org.springframework.stereotype.Component;
 import org.springframework.util.backoff.ExponentialBackOff;
-
 
 @Slf4j
 @Component
@@ -27,6 +25,7 @@ public class PaymentRequestErrorHandler extends DefaultErrorHandler {
                                       @Value("${app.kafka.error-handler.retry.multiplier}") double multiplier,
                                       @Value("${app.kafka.error-handler.retry.max-interval}") long maxInterval,
                                       @Value("${app.kafka.error-handler.retry.max-elapsed-time}") long maxElapsedTime) {
+
         super(new PaymentRequestRecoverer(paymentResponseProducer), createExponentialBackOff(initialInterval, multiplier, maxInterval, maxElapsedTime));
 
         addNotRetryableExceptions(
@@ -46,44 +45,7 @@ public class PaymentRequestErrorHandler extends DefaultErrorHandler {
         return backOff;
     }
 
-    @Override
-    public void handleRemaining(Exception thrownException,
-                                java.util.List<org.apache.kafka.clients.consumer.ConsumerRecord<?, ?>> records,
-                                Consumer<?, ?> consumer,
-                                org.springframework.kafka.listener.MessageListenerContainer container) {
-
-        log.error("Error handler processing remaining records after retries exhausted - Operation: error_handling, ErrorHandlerType: handleRemaining, RecordCount: {}, ExceptionType: {}, ExceptionMessage: {}",
-                records.size(), thrownException.getClass().getSimpleName(), thrownException.getMessage());
-
-        for (org.apache.kafka.clients.consumer.ConsumerRecord<?, ?> record : records) {
-            logRetryAttempt(record, thrownException, "FINAL_FAILURE");
-        }
-
-        super.handleRemaining(thrownException, records, consumer, container);
-    }
-
-    @Override
-    public boolean handleOne(Exception thrownException,
-                             org.apache.kafka.clients.consumer.ConsumerRecord<?, ?> record,
-                             Consumer<?, ?> consumer,
-                             org.springframework.kafka.listener.MessageListenerContainer container) {
-
-        logRetryAttempt(record, thrownException, "RETRY_ATTEMPT");
-
-        return super.handleOne(thrownException, record, consumer, container);
-    }
-
-    private void logRetryAttempt(org.apache.kafka.clients.consumer.ConsumerRecord<?, ?> record,
-                                 Exception exception, String attemptType) {
-        log.error("Error handler processing record retry attempt - Operation: error_handling, AttemptType: {}, Topic: {}, Partition: {}, Offset: {}, Key: {}, ExceptionType: {}, ExceptionMessage: {}",
-                attemptType, record.topic(), record.partition(), record.offset(), record.key(), exception.getClass().getSimpleName(), exception.getMessage());
-    }
-
-
-    @RequiredArgsConstructor
-    private static class PaymentRequestRecoverer implements ConsumerRecordRecoverer {
-
-        private final PaymentResponseProducer paymentResponseProducer;
+    private static record PaymentRequestRecoverer(PaymentResponseProducer paymentResponseProducer) implements ConsumerRecordRecoverer {
 
         @Override
         public void accept(ConsumerRecord<?, ?> record, Exception exception) {
