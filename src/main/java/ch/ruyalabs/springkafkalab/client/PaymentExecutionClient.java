@@ -21,37 +21,16 @@ public class PaymentExecutionClient {
     @Value("${app.simulation.payment-execution.simulate-gateway-timeout-exception}")
     private boolean simulateGatewayTimeoutException;
 
-    public String executePayment(PaymentDto paymentDto)
-            throws PaymentProcessingException, InvalidPaymentMethodException, GatewayTimeoutException {
+    public void requestPaymentExecution(PaymentDto paymentDto) {
 
-        log.info("Starting payment execution simulation - Operation: payment_execution, PaymentId: {}, CustomerId: {}, Amount: {} {}, PaymentMethod: {}",
+        log.info("Requesting payment execution - Operation: payment_execution_request, PaymentId: {}, CustomerId: {}, Amount: {} {}, PaymentMethod: {}",
                 paymentDto.getPaymentId(), paymentDto.getCustomerId(), paymentDto.getAmount(), paymentDto.getCurrency(), paymentDto.getPaymentMethod());
 
-        if (simulateInvalidPaymentMethodException) {
-            log.error("Payment execution failed due to invalid payment method - ErrorType: invalid_payment_method, PaymentMethod: {}, PaymentId: {}",
-                    paymentDto.getPaymentMethod(), paymentDto.getPaymentId());
-            throw new InvalidPaymentMethodException("Invalid payment method: " + paymentDto.getPaymentMethod());
-        }
+        // This is now just a request - the actual execution will be handled by an external system
+        // The external system will write the result to the payment-execution-status topic
 
-        if (simulateGatewayTimeoutException) {
-            log.error("Payment execution failed due to gateway timeout - ErrorType: gateway_timeout, PaymentId: {}",
-                    paymentDto.getPaymentId());
-            throw new GatewayTimeoutException("Payment gateway timeout for payment: " + paymentDto.getPaymentId());
-        }
-
-        if (simulatePaymentProcessingException) {
-            log.error("Payment execution failed due to processing error - ErrorType: processing_error, PaymentId: {}, Amount: {} {}",
-                    paymentDto.getPaymentId(), paymentDto.getAmount(), paymentDto.getCurrency());
-            throw new PaymentProcessingException("Payment processing failed for payment: " + paymentDto.getPaymentId() +
-                    ". Amount: " + paymentDto.getAmount() + " " + paymentDto.getCurrency());
-        }
-
-        String result = "Payment executed successfully for ID: " + paymentDto.getPaymentId() +
-                " with amount: " + paymentDto.getAmount() + " " + paymentDto.getCurrency();
-
-        log.info("Payment execution completed successfully - Result: {}", result);
-
-        return result;
+        log.info("Payment execution request submitted successfully - PaymentId: {}, CustomerId: {}, Amount: {} {}",
+                paymentDto.getPaymentId(), paymentDto.getCustomerId(), paymentDto.getAmount(), paymentDto.getCurrency());
     }
 
 }

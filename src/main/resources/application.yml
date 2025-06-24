@@ -23,6 +23,7 @@ app:
     topics:
       payment-request: payment-request
       payment-response: payment-response
+      payment-execution-status: payment-execution-status
       partitions: 3
       replication-factor: 3
     consumer:

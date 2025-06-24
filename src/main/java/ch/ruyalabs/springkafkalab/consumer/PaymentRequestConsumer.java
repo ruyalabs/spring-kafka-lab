@@ -37,58 +37,32 @@ public class PaymentRequestConsumer {
             log.warn("Poison pill detected - message has been retried {} times - PaymentId: {}, CustomerId: {}",
                     deliveryAttempt, paymentDto.getPaymentId(), paymentDto.getCustomerId());
 
-            try {
-                String poisonPillErrorMessage = "Payment processing failed after multiple attempts. Message marked as poison pill.";
-                paymentResponseProducer.sendErrorResponse(paymentDto, poisonPillErrorMessage);
-                log.info("Poison pill error response sent successfully - PaymentId: {}, CustomerId: {}",
-                        paymentDto.getPaymentId(), paymentDto.getCustomerId());
-            } catch (Exception e) {
-                log.error("CRITICAL: Failed to send poison pill error response - PaymentId: {}, CustomerId: {}, ErrorType: {}, ErrorMessage: {}. " +
-                        "This violates the exactly-one-response guarantee and requires manual intervention.",
-                        paymentDto.getPaymentId(), paymentDto.getCustomerId(), e.getClass().getSimpleName(), e.getMessage(), e);
-
-                log.warn("Proceeding with transaction commit despite poison pill response failure to unblock partition - PaymentId: {}, CustomerId: {}. " +
-                        "MANUAL ACTION REQUIRED: Verify if response was sent and take corrective action if needed.",
-                        paymentDto.getPaymentId(), paymentDto.getCustomerId());
-            }
+            String poisonPillErrorMessage = "Payment processing failed after multiple attempts. Message marked as poison pill.";
+            paymentResponseProducer.sendErrorResponse(paymentDto, poisonPillErrorMessage);
+            log.info("Poison pill error response sent successfully - PaymentId: {}, CustomerId: {}",
+                    paymentDto.getPaymentId(), paymentDto.getCustomerId());
             return;
         }
 
-        try {
-            boolean balanceCheckResult = balanceCheckClient.checkBalance(
-                    paymentDto.getCustomerId(),
-                    paymentDto.getAmount()
-            );
+        boolean balanceCheckResult = balanceCheckClient.checkBalance(
+                paymentDto.getCustomerId(),
+                paymentDto.getAmount()
+        );
 
-            if (balanceCheckResult) {
-                paymentExecutionClient.executePayment(paymentDto);
-                log.info("Payment request processed successfully - Status: success, CustomerId: {}, PaymentId: {}",
-                        paymentDto.getCustomerId(), paymentDto.getPaymentId());
-                paymentResponseProducer.sendSuccessResponse(paymentDto);
-            } else {
-                log.info("Payment request skipped due to insufficient balance - Reason: insufficient_balance, CustomerId: {}, PaymentId: {}",
-                        paymentDto.getCustomerId(), paymentDto.getPaymentId());
-                paymentResponseProducer.sendErrorResponse(paymentDto, "Insufficient balance for payment");
-            }
-        } catch (Exception e) {
-            log.error("Exception occurred while processing payment request - PaymentId: {}, CustomerId: {}, ErrorType: {}, ErrorMessage: {}",
-                    paymentDto.getPaymentId(), paymentDto.getCustomerId(), e.getClass().getSimpleName(), e.getMessage(), e);
-            String errorMessage = buildErrorMessage(e);
-            paymentResponseProducer.sendErrorResponse(paymentDto, errorMessage);
-            log.info("Error response sent successfully for failed payment - PaymentId: {}, CustomerId: {}",
+        if (balanceCheckResult) {
+            // Request payment execution (external system will handle actual execution)
+            paymentExecutionClient.requestPaymentExecution(paymentDto);
+
+            // Store pending payment to match with execution status later
+            PaymentExecutionStatusConsumer.addPendingPayment(paymentDto.getPaymentId(), paymentDto);
+
+            log.info("Payment execution requested successfully - PaymentId: {}, CustomerId: {}, Status: pending_execution",
                     paymentDto.getPaymentId(), paymentDto.getCustomerId());
+        } else {
+            log.info("Payment request skipped due to insufficient balance - Reason: insufficient_balance, CustomerId: {}, PaymentId: {}",
+                    paymentDto.getCustomerId(), paymentDto.getPaymentId());
+            paymentResponseProducer.sendErrorResponse(paymentDto, "Insufficient balance for payment");
         }
     }
 
-    private String buildErrorMessage(Exception exception) {
-        StringBuilder errorMsg = new StringBuilder();
-        errorMsg.append("Payment processing failed. ");
-        errorMsg.append("Error: ").append(exception.getMessage());
-
-        if (exception.getCause() != null) {
-            errorMsg.append(" Cause: ").append(exception.getCause().getMessage());
-        }
-
-        return errorMsg.toString();
-    }
 }

@@ -125,3 +125,20 @@ components:
         errorInfo:
           type: string
           description: Error information when status is error
+    PaymentExecutionStatusDto:
+      type: object
+      required:
+        - paymentId
+        - status
+      properties:
+        paymentId:
+          type: string
+          description: Unique identifier for the payment
+          example: "pay_1234567890abcdef"
+        status:
+          type: string
+          description: Payment execution status
+          enum:
+            - OK
+            - NOK
+          example: "OK"

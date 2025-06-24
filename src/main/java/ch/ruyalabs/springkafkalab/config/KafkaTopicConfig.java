@@ -14,6 +14,9 @@ public class KafkaTopicConfig {
     @Value("${app.kafka.topics.payment-response}")
     private String paymentResponseTopicName;
 
+    @Value("${app.kafka.topics.payment-execution-status}")
+    private String paymentExecutionStatusTopicName;
+
     @Value("${app.kafka.topics.partitions}")
     private int partitions;
 
@@ -28,5 +31,10 @@ public class KafkaTopicConfig {
     @Bean
     public NewTopic paymentResponseTopic() {
         return new NewTopic(paymentResponseTopicName, partitions, replicationFactor);
+    }
+
+    @Bean
+    public NewTopic paymentExecutionStatusTopic() {
+        return new NewTopic(paymentExecutionStatusTopicName, partitions, replicationFactor);
     }
 }
