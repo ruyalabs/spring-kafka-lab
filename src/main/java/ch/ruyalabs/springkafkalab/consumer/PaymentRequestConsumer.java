@@ -7,6 +7,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.KafkaHeaders;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,10 +27,30 @@ public class PaymentRequestConsumer {
             containerFactory = "paymentRequestKafkaListenerContainerFactory"
     )
     @Transactional(transactionManager = "kafkaTransactionManager", rollbackFor = Exception.class)
-    public void consume(@Payload @Valid PaymentDto paymentDto) {
+    public void consume(@Payload @Valid PaymentDto paymentDto,
+                       @Header(value = KafkaHeaders.DELIVERY_ATTEMPT, required = false) Integer deliveryAttempt) throws Exception {
 
-        log.info("Payment request consumed from Kafka topic: payment-request - PaymentId: {}, CustomerId: {}, Amount: {} {}, Operation: payment_request_processing",
-                paymentDto.getPaymentId(), paymentDto.getCustomerId(), paymentDto.getAmount(), paymentDto.getCurrency());
+        log.info("Payment request consumed from Kafka topic: payment-request - PaymentId: {}, CustomerId: {}, Amount: {} {}, DeliveryAttempt: {}, Operation: payment_request_processing",
+                paymentDto.getPaymentId(), paymentDto.getCustomerId(), paymentDto.getAmount(), paymentDto.getCurrency(), deliveryAttempt);
+
+        // Poison pill detection: if this message has been retried too many times, handle it specially
+        if (deliveryAttempt != null && deliveryAttempt > 3) {
+            log.warn("Poison pill detected - message has been retried {} times - PaymentId: {}, CustomerId: {}",
+                    deliveryAttempt, paymentDto.getPaymentId(), paymentDto.getCustomerId());
+
+            // Send a specific error response for poison pill and commit the transaction to break the retry loop
+            try {
+                String poisonPillErrorMessage = "Payment processing failed after multiple attempts. Message marked as poison pill.";
+                paymentResponseProducer.sendErrorResponse(paymentDto, poisonPillErrorMessage);
+                log.info("Poison pill error response sent successfully - PaymentId: {}, CustomerId: {}",
+                        paymentDto.getPaymentId(), paymentDto.getCustomerId());
+            } catch (Exception e) {
+                log.error("Failed to send poison pill error response - PaymentId: {}, CustomerId: {}, ErrorType: {}, ErrorMessage: {}",
+                        paymentDto.getPaymentId(), paymentDto.getCustomerId(), e.getClass().getSimpleName(), e.getMessage(), e);
+                // Even if sending poison pill response fails, we still want to commit to break the retry loop
+            }
+            return; // Exit successfully to commit the transaction
+        }
 
         try {
             boolean balanceCheckResult = balanceCheckClient.checkBalance(
@@ -50,15 +72,11 @@ public class PaymentRequestConsumer {
             log.error("Exception occurred while processing payment request - PaymentId: {}, CustomerId: {}, ErrorType: {}, ErrorMessage: {}",
                     paymentDto.getPaymentId(), paymentDto.getCustomerId(), e.getClass().getSimpleName(), e.getMessage(), e);
 
-            try {
-                String errorMessage = buildErrorMessage(e);
-                paymentResponseProducer.sendErrorResponse(paymentDto, errorMessage);
-                log.info("Error response sent successfully for failed payment - PaymentId: {}, CustomerId: {}",
-                        paymentDto.getPaymentId(), paymentDto.getCustomerId());
-            } catch (Exception responseException) {
-                log.error("Failed to send error response for failed payment - PaymentId: {}, CustomerId: {}, ErrorType: {}, ErrorMessage: {}",
-                        paymentDto.getPaymentId(), paymentDto.getCustomerId(), responseException.getClass().getSimpleName(), responseException.getMessage(), responseException);
-            }
+            // Send error response - if this fails, let the exception propagate to trigger transaction rollback
+            String errorMessage = buildErrorMessage(e);
+            paymentResponseProducer.sendErrorResponse(paymentDto, errorMessage);
+            log.info("Error response sent successfully for failed payment - PaymentId: {}, CustomerId: {}",
+                    paymentDto.getPaymentId(), paymentDto.getCustomerId());
         }
     }
 
