@@ -6,8 +6,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.kafka.support.KafkaHeaders;
-import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,20 +24,13 @@ public class PaymentExecutionStatusConsumer {
 
     @KafkaListener(
             topics = "${app.kafka.topics.payment-execution-status}",
-            containerFactory = "paymentRequestKafkaListenerContainerFactory"
+            containerFactory = "paymentExecutionStatusKafkaListenerContainerFactory"
     )
     @Transactional(transactionManager = "kafkaTransactionManager", rollbackFor = Exception.class)
-    public void consume(@Payload @Valid PaymentExecutionStatusDto statusDto,
-                        @Header(value = KafkaHeaders.DELIVERY_ATTEMPT, required = false) Integer deliveryAttempt) throws Exception {
+    public void consume(@Payload @Valid PaymentExecutionStatusDto statusDto) throws Exception {
 
-        log.info("Payment execution status consumed from Kafka topic: payment-execution-status - PaymentId: {}, Status: {}, DeliveryAttempt: {}, Operation: payment_execution_status_processing",
-                statusDto.getPaymentId(), statusDto.getStatus(), deliveryAttempt);
-
-        if (deliveryAttempt != null && deliveryAttempt > 3) {
-            log.warn("Poison pill detected for payment execution status - message has been retried {} times - PaymentId: {}",
-                    deliveryAttempt, statusDto.getPaymentId());
-            return;
-        }
+        log.info("Payment execution status consumed from Kafka topic: payment-execution-status - PaymentId: {}, Status: {}, Operation: payment_execution_status_processing",
+                statusDto.getPaymentId(), statusDto.getStatus());
 
         // Check if this payment has already been processed (idempotency check)
         if (completedPayments.containsKey(statusDto.getPaymentId())) {

@@ -39,9 +39,11 @@ public class PaymentRequestConsumer {
             );
 
             if (balanceCheckResult) {
-                paymentExecutionClient.requestPaymentExecution(paymentDto);
-
+                // Add to pending payments first (within transaction) to ensure atomic state update
                 PaymentExecutionStatusConsumer.addPendingPayment(paymentDto.getPaymentId(), paymentDto);
+
+                // Then make external call - if this fails, transaction will rollback and state won't be persisted
+                paymentExecutionClient.requestPaymentExecution(paymentDto);
 
                 log.info("Payment execution requested successfully - PaymentId: {}, CustomerId: {}, Status: pending_execution",
                         paymentDto.getPaymentId(), paymentDto.getCustomerId());

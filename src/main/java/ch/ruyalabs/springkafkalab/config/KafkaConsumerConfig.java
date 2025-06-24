@@ -1,6 +1,7 @@
 package ch.ruyalabs.springkafkalab.config;
 
 import ch.ruyalabs.springkafkalab.dto.PaymentDto;
+import ch.ruyalabs.springkafkalab.dto.PaymentExecutionStatusDto;
 import ch.ruyalabs.springkafkalab.dto.PaymentResponseDto;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -78,6 +79,56 @@ public class KafkaConsumerConfig {
                         log.error("CRITICAL: Failed to send final error response after retry exhaustion - Key: {}, ErrorType: {}, ErrorMessage: {}. " +
                                         "This violates the exactly-one-response guarantee and requires manual intervention.",
                                 consumerRecord.key(), e.getClass().getSimpleName(), e.getMessage(), e);
+                        // Re-throw to prevent offset commit and ensure message is reprocessed
+                        throw new RuntimeException("Failed to send final error response", e);
+                    }
+                },
+                new FixedBackOff(1000L, 3L)
+        );
+
+        factory.setCommonErrorHandler(errorHandler);
+        return factory;
+    }
+
+    @Bean
+    public ConsumerFactory<String, PaymentExecutionStatusDto> paymentExecutionStatusConsumerFactory() {
+        Map<String, Object> configProps = new HashMap<>(kafkaProperties.buildConsumerProperties());
+        configProps.put(ConsumerConfig.GROUP_ID_CONFIG, paymentRequestGroupId);
+        configProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, autoOffsetReset);
+        configProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, enableAutoCommit);
+
+        return new DefaultKafkaConsumerFactory<>(configProps);
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, PaymentExecutionStatusDto> paymentExecutionStatusKafkaListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, PaymentExecutionStatusDto> factory = new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(paymentExecutionStatusConsumerFactory());
+        factory.setConcurrency(1);
+        factory.setBatchListener(false);
+
+        DefaultErrorHandler errorHandler = new DefaultErrorHandler(
+                (consumerRecord, exception) -> {
+                    log.error("Payment execution status message processing failed after all retries - Topic: {}, Partition: {}, Offset: {}, Key: {}, ErrorType: {}, ErrorMessage: {}",
+                            consumerRecord.topic(), consumerRecord.partition(), consumerRecord.offset(),
+                            consumerRecord.key(), exception.getClass().getSimpleName(), exception.getMessage(), exception);
+                    try {
+                        PaymentExecutionStatusDto statusDto = (PaymentExecutionStatusDto) consumerRecord.value();
+                        // Create error response for the original payment request
+                        PaymentResponseDto errorResponse = new PaymentResponseDto()
+                                .paymentId(statusDto.getPaymentId())
+                                .status(PaymentResponseDto.StatusEnum.ERROR)
+                                .errorInfo("Payment execution status processing failed after all retry attempts. Error: " + exception.getMessage());
+
+                        nonTransactionalKafkaTemplate.send(paymentResponseTopic, statusDto.getPaymentId(), errorResponse);
+                        log.info("Final error response sent successfully for status message after retry exhaustion - PaymentId: {}",
+                                statusDto.getPaymentId());
+                    } catch (Exception e) {
+                        log.error("CRITICAL: Failed to send final error response for status message after retry exhaustion - Key: {}, ErrorType: {}, ErrorMessage: {}. " +
+                                        "This violates the exactly-one-response guarantee and requires manual intervention.",
+                                consumerRecord.key(), e.getClass().getSimpleName(), e.getMessage(), e);
+                        // Re-throw to prevent offset commit and ensure message is reprocessed
+                        throw new RuntimeException("Failed to send final error response for status message", e);
                     }
                 },
                 new FixedBackOff(1000L, 3L)
