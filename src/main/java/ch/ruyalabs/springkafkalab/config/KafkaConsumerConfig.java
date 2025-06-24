@@ -50,15 +50,13 @@ public class KafkaConsumerConfig {
         factory.setConcurrency(1);
         factory.setBatchListener(false);
 
-        // Configure explicit error handler with 3 retries to make retry behavior explicit
-        // This aligns with the poison pill detection logic that triggers after 3 delivery attempts
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(
-            (consumerRecord, exception) -> {
-                log.error("Message processing failed after all retries - Topic: {}, Partition: {}, Offset: {}, Key: {}, ErrorType: {}, ErrorMessage: {}",
-                    consumerRecord.topic(), consumerRecord.partition(), consumerRecord.offset(), 
-                    consumerRecord.key(), exception.getClass().getSimpleName(), exception.getMessage(), exception);
-            },
-            new FixedBackOff(1000L, 3L) // 1 second interval, 3 retries
+                (consumerRecord, exception) -> {
+                    log.error("Message processing failed after all retries - Topic: {}, Partition: {}, Offset: {}, Key: {}, ErrorType: {}, ErrorMessage: {}",
+                            consumerRecord.topic(), consumerRecord.partition(), consumerRecord.offset(),
+                            consumerRecord.key(), exception.getClass().getSimpleName(), exception.getMessage(), exception);
+                },
+                new FixedBackOff(1000L, 3L)
         );
 
         factory.setCommonErrorHandler(errorHandler);
