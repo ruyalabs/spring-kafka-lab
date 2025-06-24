@@ -47,6 +47,11 @@ public class PaymentResponseProducer {
         sendResponseNonTransactional(response, "UNKNOWN");
     }
 
+    public void sendGenericDeserializationErrorResponse(String errorMessage, String deterministicKey) throws Exception {
+        PaymentResponseDto response = createGenericDeserializationErrorResponse(errorMessage, deterministicKey);
+        sendResponseNonTransactional(response, deterministicKey);
+    }
+
     private PaymentResponseDto createSuccessResponse(PaymentDto originalRequest) {
         return new PaymentResponseDto()
                 .paymentId(originalRequest.getPaymentId())
@@ -75,6 +80,17 @@ public class PaymentResponseProducer {
                 .currency("USD")
                 .paymentMethod(PaymentResponseDto.PaymentMethodEnum.CREDIT_CARD)
                 .customerId("UNKNOWN")
+                .status(PaymentResponseDto.StatusEnum.ERROR)
+                .errorInfo(errorMessage);
+    }
+
+    private PaymentResponseDto createGenericDeserializationErrorResponse(String errorMessage, String deterministicKey) {
+        return new PaymentResponseDto()
+                .paymentId(deterministicKey)
+                .amount(0.01)
+                .currency("USD")
+                .paymentMethod(PaymentResponseDto.PaymentMethodEnum.CREDIT_CARD)
+                .customerId(deterministicKey)
                 .status(PaymentResponseDto.StatusEnum.ERROR)
                 .errorInfo(errorMessage);
     }

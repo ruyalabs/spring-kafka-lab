@@ -15,6 +15,9 @@ import org.springframework.kafka.support.serializer.DeserializationException;
 import org.springframework.stereotype.Component;
 import org.springframework.util.backoff.ExponentialBackOff;
 
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+
 @Slf4j
 @Component
 public class PaymentRequestErrorHandler extends DefaultErrorHandler {
@@ -65,9 +68,10 @@ public class PaymentRequestErrorHandler extends DefaultErrorHandler {
                         logRawMessage(record, exception);
 
                         String errorMessage = "Message deserialization failed: " + exception.getMessage();
-                        paymentResponseProducer.sendGenericDeserializationErrorResponse(errorMessage);
+                        String deterministicKey = generateDeterministicKey(record);
+                        paymentResponseProducer.sendGenericDeserializationErrorResponse(errorMessage, deterministicKey);
 
-                        log.info("Generic error response sent for deserialization failure - Reason: deserialization_failure");
+                        log.info("Generic error response sent for deserialization failure - Reason: deserialization_failure, DeterministicKey: {}", deterministicKey);
                     } else {
                         log.error("Could not extract PaymentDto from failed record - Reason: unable_to_extract_payment_dto");
                     }
@@ -144,6 +148,46 @@ public class PaymentRequestErrorHandler extends DefaultErrorHandler {
                 result.append(String.format("%02x", b));
             }
             return result.toString();
+        }
+
+        private String generateDeterministicKey(ConsumerRecord<?, ?> record) {
+            try {
+                // Create a string that uniquely identifies this message
+                StringBuilder keyBuilder = new StringBuilder();
+                keyBuilder.append("topic:").append(record.topic());
+                keyBuilder.append("|partition:").append(record.partition());
+                keyBuilder.append("|offset:").append(record.offset());
+
+                // Add raw message content if available
+                if (record.value() != null) {
+                    byte[] rawValue = null;
+                    if (record.value() instanceof byte[]) {
+                        rawValue = (byte[]) record.value();
+                    } else {
+                        rawValue = record.value().toString().getBytes();
+                    }
+                    keyBuilder.append("|payload:").append(bytesToHex(rawValue));
+                }
+
+                // Generate SHA-256 hash of the combined string
+                MessageDigest digest = MessageDigest.getInstance("SHA-256");
+                byte[] hash = digest.digest(keyBuilder.toString().getBytes());
+
+                // Convert to hex and take first 16 characters for a shorter key
+                String fullHash = bytesToHex(hash);
+                return "DESER_ERR_" + fullHash.substring(0, 16);
+
+            } catch (NoSuchAlgorithmException e) {
+                log.error("Failed to generate deterministic key due to missing SHA-256 algorithm - ErrorType: {}, ErrorMessage: {}",
+                        e.getClass().getSimpleName(), e.getMessage());
+                // Fallback to a combination of topic, partition, and offset
+                return "DESER_ERR_" + record.topic() + "_" + record.partition() + "_" + record.offset();
+            } catch (Exception e) {
+                log.error("Failed to generate deterministic key - ErrorType: {}, ErrorMessage: {}",
+                        e.getClass().getSimpleName(), e.getMessage());
+                // Ultimate fallback
+                return "DESER_ERR_UNKNOWN";
+            }
         }
     }
 }

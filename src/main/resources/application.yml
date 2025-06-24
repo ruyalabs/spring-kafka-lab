@@ -39,10 +39,10 @@ app:
       transaction-timeout-ms: 120000
     error-handler:
       retry:
-        initial-interval: 2000
+        initial-interval: 2000 # 2 seconds
         multiplier: 2.0
-        max-interval: 2000
-        max-elapsed-time: 8000
+        max-interval: 8000 # e.g., 8 seconds
+        max-elapsed-time: 15000 # e.g., 15 seconds
 
   simulation:
     balance-check:
