@@ -1,9 +1,10 @@
 package ch.ruyalabs.springkafkalab.config;
 
 import ch.ruyalabs.springkafkalab.dto.PaymentDto;
-import lombok.RequiredArgsConstructor;
+import ch.ruyalabs.springkafkalab.dto.PaymentResponseDto;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.context.annotation.Bean;
@@ -11,6 +12,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.util.backoff.FixedBackOff;
 
@@ -19,10 +21,16 @@ import java.util.Map;
 
 @Slf4j
 @Configuration
-@RequiredArgsConstructor
 public class KafkaConsumerConfig {
 
     private final KafkaProperties kafkaProperties;
+    private final KafkaTemplate<String, PaymentResponseDto> nonTransactionalKafkaTemplate;
+
+    public KafkaConsumerConfig(KafkaProperties kafkaProperties,
+                               @Qualifier("nonTransactionalKafkaTemplate") KafkaTemplate<String, PaymentResponseDto> nonTransactionalKafkaTemplate) {
+        this.kafkaProperties = kafkaProperties;
+        this.nonTransactionalKafkaTemplate = nonTransactionalKafkaTemplate;
+    }
 
     @Value("${app.kafka.consumer.payment-request.group-id}")
     private String paymentRequestGroupId;
@@ -32,6 +40,9 @@ public class KafkaConsumerConfig {
 
     @Value("${app.kafka.consumer.payment-request.enable-auto-commit}")
     private boolean enableAutoCommit;
+
+    @Value("${app.kafka.topics.payment-response}")
+    private String paymentResponseTopic;
 
     @Bean
     public ConsumerFactory<String, PaymentDto> paymentRequestConsumerFactory() {
@@ -55,11 +66,35 @@ public class KafkaConsumerConfig {
                     log.error("Message processing failed after all retries - Topic: {}, Partition: {}, Offset: {}, Key: {}, ErrorType: {}, ErrorMessage: {}",
                             consumerRecord.topic(), consumerRecord.partition(), consumerRecord.offset(),
                             consumerRecord.key(), exception.getClass().getSimpleName(), exception.getMessage(), exception);
+                    try {
+                        PaymentDto paymentDto = (PaymentDto) consumerRecord.value();
+                        PaymentResponseDto errorResponse = createErrorResponse(paymentDto,
+                                "Payment processing failed after all retry attempts. Error: " + exception.getMessage());
+
+                        nonTransactionalKafkaTemplate.send(paymentResponseTopic, paymentDto.getPaymentId(), errorResponse);
+                        log.info("Final error response sent successfully after retry exhaustion - PaymentId: {}, CustomerId: {}",
+                                paymentDto.getPaymentId(), paymentDto.getCustomerId());
+                    } catch (Exception e) {
+                        log.error("CRITICAL: Failed to send final error response after retry exhaustion - Key: {}, ErrorType: {}, ErrorMessage: {}. " +
+                                        "This violates the exactly-one-response guarantee and requires manual intervention.",
+                                consumerRecord.key(), e.getClass().getSimpleName(), e.getMessage(), e);
+                    }
                 },
                 new FixedBackOff(1000L, 3L)
         );
 
         factory.setCommonErrorHandler(errorHandler);
         return factory;
+    }
+
+    private PaymentResponseDto createErrorResponse(PaymentDto originalRequest, String errorMessage) {
+        return new PaymentResponseDto()
+                .paymentId(originalRequest.getPaymentId())
+                .amount(originalRequest.getAmount())
+                .currency(originalRequest.getCurrency())
+                .paymentMethod(PaymentResponseDto.PaymentMethodEnum.fromValue(originalRequest.getPaymentMethod().getValue()))
+                .customerId(originalRequest.getCustomerId())
+                .status(PaymentResponseDto.StatusEnum.ERROR)
+                .errorInfo(errorMessage);
     }
 }

@@ -43,10 +43,12 @@ public class PaymentRequestConsumer {
                 log.info("Poison pill error response sent successfully - PaymentId: {}, CustomerId: {}",
                         paymentDto.getPaymentId(), paymentDto.getCustomerId());
             } catch (Exception e) {
-                log.error("Failed to send poison pill error response - PaymentId: {}, CustomerId: {}, ErrorType: {}, ErrorMessage: {}",
+                log.error("CRITICAL: Failed to send poison pill error response - PaymentId: {}, CustomerId: {}, ErrorType: {}, ErrorMessage: {}. " +
+                        "This violates the exactly-one-response guarantee and requires manual intervention.",
                         paymentDto.getPaymentId(), paymentDto.getCustomerId(), e.getClass().getSimpleName(), e.getMessage(), e);
 
-                log.warn("Proceeding with transaction commit despite poison pill response failure to unblock partition - PaymentId: {}, CustomerId: {}",
+                log.warn("Proceeding with transaction commit despite poison pill response failure to unblock partition - PaymentId: {}, CustomerId: {}. " +
+                        "MANUAL ACTION REQUIRED: Verify if response was sent and take corrective action if needed.",
                         paymentDto.getPaymentId(), paymentDto.getCustomerId());
             }
             return;
