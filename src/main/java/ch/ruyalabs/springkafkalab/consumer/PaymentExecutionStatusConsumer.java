@@ -32,14 +32,12 @@ public class PaymentExecutionStatusConsumer {
         log.info("Payment execution status consumed from Kafka topic: payment-execution-status - PaymentId: {}, Status: {}, Operation: payment_execution_status_processing",
                 statusDto.getPaymentId(), statusDto.getStatus());
 
-        // Check if this payment has already been processed (idempotency check)
         if (completedPayments.containsKey(statusDto.getPaymentId())) {
             log.info("Payment status already processed - acknowledging duplicate message without reprocessing - PaymentId: {}, Status: {}",
                     statusDto.getPaymentId(), statusDto.getStatus());
             return;
         }
 
-        // Get the original payment but don't remove it yet (atomic operation requirement)
         PaymentDto originalPayment = pendingPayments.get(statusDto.getPaymentId());
 
         if (originalPayment == null) {
@@ -49,7 +47,6 @@ public class PaymentExecutionStatusConsumer {
         }
 
         try {
-            // Send response first (within transaction)
             if (PaymentExecutionStatusDto.StatusEnum.OK.equals(statusDto.getStatus())) {
                 log.info("Payment execution successful - Status: success, PaymentId: {}, CustomerId: {}",
                         statusDto.getPaymentId(), originalPayment.getCustomerId());
@@ -60,7 +57,6 @@ public class PaymentExecutionStatusConsumer {
                 paymentResponseProducer.sendErrorResponse(originalPayment, "Payment execution failed");
             }
 
-            // Only after successful response sending, update the state atomically
             pendingPayments.remove(statusDto.getPaymentId());
             completedPayments.put(statusDto.getPaymentId(), true);
 
@@ -70,8 +66,7 @@ public class PaymentExecutionStatusConsumer {
         } catch (Exception e) {
             log.error("Failed to send payment response - keeping payment in pending state for retry - PaymentId: {}, ErrorMessage: {}, ErrorType: {}",
                     statusDto.getPaymentId(), e.getMessage(), e.getClass().getSimpleName());
-            // Don't update state - payment remains in pendingPayments for potential retry
-            throw e; // Re-throw to trigger transaction rollback
+            throw e;
         }
     }
 

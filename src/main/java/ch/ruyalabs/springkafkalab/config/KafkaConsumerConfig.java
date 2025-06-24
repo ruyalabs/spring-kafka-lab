@@ -83,7 +83,6 @@ public class KafkaConsumerConfig {
                                 consumerRecord.topic(), consumerRecord.partition(), consumerRecord.offset(),
                                 consumerRecord.key(), exception.getClass().getSimpleName(), exception.getMessage(),
                                 e.getClass().getSimpleName(), e.getMessage(), e);
-                        // Do not re-throw - allow offset commit to prevent infinite loop and partition blocking
                     }
                 },
                 new FixedBackOff(0L, 0L)
@@ -117,7 +116,6 @@ public class KafkaConsumerConfig {
                             consumerRecord.key(), exception.getClass().getSimpleName(), exception.getMessage(), exception);
                     try {
                         PaymentExecutionStatusDto statusDto = (PaymentExecutionStatusDto) consumerRecord.value();
-                        // Create error response for the original payment request
                         PaymentResponseDto errorResponse = new PaymentResponseDto()
                                 .paymentId(statusDto.getPaymentId())
                                 .status(PaymentResponseDto.StatusEnum.ERROR)
@@ -134,7 +132,6 @@ public class KafkaConsumerConfig {
                                 consumerRecord.topic(), consumerRecord.partition(), consumerRecord.offset(),
                                 consumerRecord.key(), exception.getClass().getSimpleName(), exception.getMessage(),
                                 e.getClass().getSimpleName(), e.getMessage(), e);
-                        // Do not re-throw - allow offset commit to prevent infinite loop and partition blocking
                     }
                 },
                 new FixedBackOff(0L, 0L)
