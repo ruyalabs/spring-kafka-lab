@@ -19,11 +19,8 @@ public class PaymentRequestErrorHandler extends DefaultErrorHandler {
 
     public PaymentRequestErrorHandler(PaymentResponseProducer paymentResponseProducer) {
         super(new PaymentRequestRecoverer(paymentResponseProducer));
-
-        //I ADDED THIS
         this.setClassifications(Collections.emptyMap(), false);
     }
-
 
     private record PaymentRequestRecoverer(
             PaymentResponseProducer paymentResponseProducer) implements ConsumerRecordRecoverer {
@@ -130,13 +127,11 @@ public class PaymentRequestErrorHandler extends DefaultErrorHandler {
 
         private String generateDeterministicKey(ConsumerRecord<?, ?> record) {
             try {
-                // Create a string that uniquely identifies this message
                 StringBuilder keyBuilder = new StringBuilder();
                 keyBuilder.append("topic:").append(record.topic());
                 keyBuilder.append("|partition:").append(record.partition());
                 keyBuilder.append("|offset:").append(record.offset());
 
-                // Add raw message content if available
                 if (record.value() != null) {
                     byte[] rawValue = null;
                     if (record.value() instanceof byte[]) {
@@ -147,23 +142,19 @@ public class PaymentRequestErrorHandler extends DefaultErrorHandler {
                     keyBuilder.append("|payload:").append(bytesToHex(rawValue));
                 }
 
-                // Generate SHA-256 hash of the combined string
                 MessageDigest digest = MessageDigest.getInstance("SHA-256");
                 byte[] hash = digest.digest(keyBuilder.toString().getBytes());
 
-                // Convert to hex and take first 16 characters for a shorter key
                 String fullHash = bytesToHex(hash);
                 return "DESER_ERR_" + fullHash.substring(0, 16);
 
             } catch (NoSuchAlgorithmException e) {
                 log.error("Failed to generate deterministic key due to missing SHA-256 algorithm - ErrorType: {}, ErrorMessage: {}",
                         e.getClass().getSimpleName(), e.getMessage());
-                // Fallback to a combination of topic, partition, and offset
                 return "DESER_ERR_" + record.topic() + "_" + record.partition() + "_" + record.offset();
             } catch (Exception e) {
                 log.error("Failed to generate deterministic key - ErrorType: {}, ErrorMessage: {}",
                         e.getClass().getSimpleName(), e.getMessage());
-                // Ultimate fallback
                 return "DESER_ERR_UNKNOWN";
             }
         }
