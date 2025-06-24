@@ -64,26 +64,29 @@ public class KafkaConsumerConfig {
 
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(
                 (consumerRecord, exception) -> {
-                    log.error("Message processing failed after all retries - Topic: {}, Partition: {}, Offset: {}, Key: {}, ErrorType: {}, ErrorMessage: {}",
+                    log.error("Message processing failed - Topic: {}, Partition: {}, Offset: {}, Key: {}, ErrorType: {}, ErrorMessage: {}",
                             consumerRecord.topic(), consumerRecord.partition(), consumerRecord.offset(),
                             consumerRecord.key(), exception.getClass().getSimpleName(), exception.getMessage(), exception);
                     try {
                         PaymentDto paymentDto = (PaymentDto) consumerRecord.value();
                         PaymentResponseDto errorResponse = createErrorResponse(paymentDto,
-                                "Payment processing failed after all retry attempts. Error: " + exception.getMessage());
+                                "Payment processing failed. Error: " + exception.getMessage());
 
                         nonTransactionalKafkaTemplate.send(paymentResponseTopic, paymentDto.getPaymentId(), errorResponse);
-                        log.info("Final error response sent successfully after retry exhaustion - PaymentId: {}, CustomerId: {}",
+                        log.info("Error response sent successfully - PaymentId: {}, CustomerId: {}",
                                 paymentDto.getPaymentId(), paymentDto.getCustomerId());
                     } catch (Exception e) {
-                        log.error("CRITICAL: Failed to send final error response after retry exhaustion - Key: {}, ErrorType: {}, ErrorMessage: {}. " +
-                                        "This violates the exactly-one-response guarantee and requires manual intervention.",
-                                consumerRecord.key(), e.getClass().getSimpleName(), e.getMessage(), e);
-                        // Re-throw to prevent offset commit and ensure message is reprocessed
-                        throw new RuntimeException("Failed to send final error response", e);
+                        log.error("CRITICAL: Failed to send error response - Topic: {}, Partition: {}, Offset: {}, Key: {}, " +
+                                        "OriginalErrorType: {}, OriginalErrorMessage: {}, SendErrorType: {}, SendErrorMessage: {}. " +
+                                        "This violates the exactly-one-response guarantee and requires MANUAL INTERVENTION. " +
+                                        "The poison pill message will be committed to prevent partition blocking.",
+                                consumerRecord.topic(), consumerRecord.partition(), consumerRecord.offset(),
+                                consumerRecord.key(), exception.getClass().getSimpleName(), exception.getMessage(),
+                                e.getClass().getSimpleName(), e.getMessage(), e);
+                        // Do not re-throw - allow offset commit to prevent infinite loop and partition blocking
                     }
                 },
-                new FixedBackOff(1000L, 3L)
+                new FixedBackOff(0L, 0L)
         );
 
         factory.setCommonErrorHandler(errorHandler);
@@ -109,7 +112,7 @@ public class KafkaConsumerConfig {
 
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(
                 (consumerRecord, exception) -> {
-                    log.error("Payment execution status message processing failed after all retries - Topic: {}, Partition: {}, Offset: {}, Key: {}, ErrorType: {}, ErrorMessage: {}",
+                    log.error("Payment execution status message processing failed - Topic: {}, Partition: {}, Offset: {}, Key: {}, ErrorType: {}, ErrorMessage: {}",
                             consumerRecord.topic(), consumerRecord.partition(), consumerRecord.offset(),
                             consumerRecord.key(), exception.getClass().getSimpleName(), exception.getMessage(), exception);
                     try {
@@ -118,20 +121,23 @@ public class KafkaConsumerConfig {
                         PaymentResponseDto errorResponse = new PaymentResponseDto()
                                 .paymentId(statusDto.getPaymentId())
                                 .status(PaymentResponseDto.StatusEnum.ERROR)
-                                .errorInfo("Payment execution status processing failed after all retry attempts. Error: " + exception.getMessage());
+                                .errorInfo("Payment execution status processing failed. Error: " + exception.getMessage());
 
                         nonTransactionalKafkaTemplate.send(paymentResponseTopic, statusDto.getPaymentId(), errorResponse);
-                        log.info("Final error response sent successfully for status message after retry exhaustion - PaymentId: {}",
+                        log.info("Error response sent successfully for status message - PaymentId: {}",
                                 statusDto.getPaymentId());
                     } catch (Exception e) {
-                        log.error("CRITICAL: Failed to send final error response for status message after retry exhaustion - Key: {}, ErrorType: {}, ErrorMessage: {}. " +
-                                        "This violates the exactly-one-response guarantee and requires manual intervention.",
-                                consumerRecord.key(), e.getClass().getSimpleName(), e.getMessage(), e);
-                        // Re-throw to prevent offset commit and ensure message is reprocessed
-                        throw new RuntimeException("Failed to send final error response for status message", e);
+                        log.error("CRITICAL: Failed to send error response for status message - Topic: {}, Partition: {}, Offset: {}, Key: {}, " +
+                                        "OriginalErrorType: {}, OriginalErrorMessage: {}, SendErrorType: {}, SendErrorMessage: {}. " +
+                                        "This violates the exactly-one-response guarantee and requires MANUAL INTERVENTION. " +
+                                        "The poison pill message will be committed to prevent partition blocking.",
+                                consumerRecord.topic(), consumerRecord.partition(), consumerRecord.offset(),
+                                consumerRecord.key(), exception.getClass().getSimpleName(), exception.getMessage(),
+                                e.getClass().getSimpleName(), e.getMessage(), e);
+                        // Do not re-throw - allow offset commit to prevent infinite loop and partition blocking
                     }
                 },
-                new FixedBackOff(1000L, 3L)
+                new FixedBackOff(0L, 0L)
         );
 
         factory.setCommonErrorHandler(errorHandler);
