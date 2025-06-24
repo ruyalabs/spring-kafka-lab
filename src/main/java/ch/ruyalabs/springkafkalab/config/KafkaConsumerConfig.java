@@ -46,6 +46,7 @@ public class KafkaConsumerConfig {
         factory.setConsumerFactory(paymentRequestConsumerFactory());
         factory.setCommonErrorHandler(paymentRequestErrorHandler);
         factory.setConcurrency(1);
+        factory.setBatchListener(false);
         return factory;
     }
 }

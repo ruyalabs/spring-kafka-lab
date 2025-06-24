@@ -6,7 +6,6 @@ import ch.ruyalabs.springkafkalab.exception.AccountNotFoundException;
 import ch.ruyalabs.springkafkalab.exception.InsufficientBalanceException;
 import ch.ruyalabs.springkafkalab.exception.InvalidPaymentMethodException;
 import ch.ruyalabs.springkafkalab.exception.PaymentProcessingException;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.beans.factory.annotation.Value;
@@ -45,7 +44,8 @@ public class PaymentRequestErrorHandler extends DefaultErrorHandler {
         return backOff;
     }
 
-    private static record PaymentRequestRecoverer(PaymentResponseProducer paymentResponseProducer) implements ConsumerRecordRecoverer {
+    private record PaymentRequestRecoverer(
+            PaymentResponseProducer paymentResponseProducer) implements ConsumerRecordRecoverer {
 
         @Override
         public void accept(ConsumerRecord<?, ?> record, Exception exception) {
