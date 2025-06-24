@@ -61,41 +61,6 @@ public class KafkaConsumerConfig {
         factory.setConsumerFactory(paymentRequestConsumerFactory());
         factory.setConcurrency(1);
         factory.setBatchListener(false);
-
-        /*
-         * CRITICAL DESIGN CONFLICT DOCUMENTATION:
-         * 
-         * The current error handling configuration creates a logically impossible scenario
-         * due to conflicting requirements:
-         * 
-         * REQUIREMENTS:
-         * 1. No retries allowed (FixedBackOff(0L, 0L))
-         * 2. No Dead Letter Queue (DLQ)
-         * 3. No partition blocking
-         * 4. Exactly one response per request (no duplicates)
-         * 5. No request may go unanswered
-         * 
-         * THE CONFLICT:
-         * If sending an error response fails (e.g., Kafka broker down), we have three options:
-         * A) Retry sending the response → Violates "no retries" requirement
-         * B) Send to DLQ for manual processing → Violates "no DLQ" requirement  
-         * C) Block the partition until response succeeds → Violates "no blocking" requirement
-         * D) Commit offset and continue → Violates "no request may go unanswered" requirement
-         * 
-         * CURRENT IMPLEMENTATION:
-         * We chose option D (commit and continue) to prioritize system availability over
-         * response guarantees. This is documented as a CRITICAL error.
-         * 
-         * RECOMMENDED SOLUTIONS (choose one):
-         * 1. Allow limited retries in error handler with exponential backoff
-         * 2. Implement persistent "failed response" storage for manual intervention
-         * 3. Allow partition blocking when response sending fails
-         * 4. Relax the "exactly one response" requirement to allow retries
-         * 
-         * BUSINESS DECISION REQUIRED: The stakeholders must choose which requirement
-         * to relax, as the current combination is mathematically impossible to satisfy
-         * in all failure scenarios.
-         */
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(
                 (consumerRecord, exception) -> {
                     log.error("Message processing failed - Topic: {}, Partition: {}, Offset: {}, Key: {}, ErrorType: {}, ErrorMessage: {}",
@@ -117,17 +82,14 @@ public class KafkaConsumerConfig {
                                         "ACTION REQUIRED: Manual intervention needed to send response. " +
                                         "RECOMMENDATION: Review conflicting requirements documented above.",
                                 consumerRecord.topic(), consumerRecord.partition(), consumerRecord.offset(),
-                                consumerRecord.key(), 
+                                consumerRecord.key(),
                                 consumerRecord.value() instanceof PaymentDto ? ((PaymentDto) consumerRecord.value()).getPaymentId() : "unknown",
                                 exception.getClass().getSimpleName(), exception.getMessage(),
                                 e.getClass().getSimpleName(), e.getMessage(), e);
 
-                        // TODO: Implement one of the recommended solutions above
-                        // For now, we commit the offset to prevent partition blocking
-                        // but this violates the "no request may go unanswered" requirement
                     }
                 },
-                new FixedBackOff(0L, 0L) // No retries - part of the conflicting requirements
+                new FixedBackOff(0L, 0L)
         );
 
         factory.setCommonErrorHandler(errorHandler);
@@ -151,7 +113,6 @@ public class KafkaConsumerConfig {
         factory.setConcurrency(1);
         factory.setBatchListener(false);
 
-        // Same conflicting requirements apply to payment execution status processing
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(
                 (consumerRecord, exception) -> {
                     log.error("Payment execution status message processing failed - Topic: {}, Partition: {}, Offset: {}, Key: {}, ErrorType: {}, ErrorMessage: {}",
@@ -179,13 +140,9 @@ public class KafkaConsumerConfig {
                                 consumerRecord.value() instanceof PaymentExecutionStatusDto ? ((PaymentExecutionStatusDto) consumerRecord.value()).getPaymentId() : "unknown",
                                 exception.getClass().getSimpleName(), exception.getMessage(),
                                 e.getClass().getSimpleName(), e.getMessage(), e);
-
-                        // TODO: Implement one of the recommended solutions documented above
-                        // For now, we commit the offset to prevent partition blocking
-                        // but this violates the "no request may go unanswered" requirement
                     }
                 },
-                new FixedBackOff(0L, 0L) // No retries - part of the conflicting requirements
+                new FixedBackOff(0L, 0L)
         );
 
         factory.setCommonErrorHandler(errorHandler);

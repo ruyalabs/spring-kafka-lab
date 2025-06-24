@@ -67,8 +67,6 @@ public class NonTransactionalPaymentResponseProducer {
         } catch (Exception e) {
             log.error("Failed to send payment response to Kafka topic (non-transactional) - PaymentId: {}, Topic: {}, ErrorMessage: {}, ErrorType: {}",
                     paymentId, paymentResponseTopic, e.getMessage(), e.getClass().getSimpleName(), e);
-            // Note: We don't re-throw the exception here as this is called after transaction commit
-            // The failure will be logged but won't cause transaction rollback
         }
     }
 }
