@@ -23,8 +23,8 @@ class PaymentExecutionStatusConsumerTest {
     @BeforeEach
     void setUp() {
         paymentExecutionStatusConsumer = new PaymentExecutionStatusConsumer(paymentResponseProducer);
-        // Clear any pending payments from previous tests
-        PaymentExecutionStatusConsumer.getPendingPaymentsCount(); // This doesn't clear, but we'll work with it
+        // Clear any pending and completed payments from previous tests
+        PaymentExecutionStatusConsumer.clearAllPayments();
     }
 
     @Test
