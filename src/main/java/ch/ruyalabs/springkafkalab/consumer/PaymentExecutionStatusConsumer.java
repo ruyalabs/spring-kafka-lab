@@ -6,7 +6,10 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.messaging.handler.annotation.Payload;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,9 +21,27 @@ import java.util.concurrent.ConcurrentHashMap;
 public class PaymentExecutionStatusConsumer {
 
     private final PaymentResponseProducer paymentResponseProducer;
+    private final NonTransactionalPaymentResponseProducer nonTransactionalPaymentResponseProducer;
 
     private static final ConcurrentHashMap<String, PaymentDto> pendingPayments = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, Boolean> completedPayments = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, PaymentExecutionResult> pendingResponses = new ConcurrentHashMap<>();
+
+    private static class PaymentExecutionResult {
+        private final PaymentDto originalPayment;
+        private final boolean isSuccess;
+        private final String errorMessage;
+
+        public PaymentExecutionResult(PaymentDto originalPayment, boolean isSuccess, String errorMessage) {
+            this.originalPayment = originalPayment;
+            this.isSuccess = isSuccess;
+            this.errorMessage = errorMessage;
+        }
+
+        public PaymentDto getOriginalPayment() { return originalPayment; }
+        public boolean isSuccess() { return isSuccess; }
+        public String getErrorMessage() { return errorMessage; }
+    }
 
     @KafkaListener(
             topics = "${app.kafka.topics.payment-execution-status}",
@@ -32,6 +53,7 @@ public class PaymentExecutionStatusConsumer {
         log.info("Payment execution status consumed from Kafka topic: payment-execution-status - PaymentId: {}, Status: {}, Operation: payment_execution_status_processing",
                 statusDto.getPaymentId(), statusDto.getStatus());
 
+        // Check if this payment has already been fully processed (both consumed and response sent)
         if (completedPayments.containsKey(statusDto.getPaymentId())) {
             log.info("Payment status already processed - acknowledging duplicate message without reprocessing - PaymentId: {}, Status: {}",
                     statusDto.getPaymentId(), statusDto.getStatus());
@@ -46,27 +68,81 @@ public class PaymentExecutionStatusConsumer {
             return;
         }
 
+        // Phase 1: Transactional consumption and state update
+        // Determine the result and prepare for response sending
+        boolean isSuccess = PaymentExecutionStatusDto.StatusEnum.OK.equals(statusDto.getStatus());
+        String errorMessage = isSuccess ? null : "Payment execution failed";
+
+        log.info("Payment execution {} - Status: {}, PaymentId: {}, CustomerId: {}",
+                isSuccess ? "successful" : "failed", 
+                isSuccess ? "success" : "error", 
+                statusDto.getPaymentId(), originalPayment.getCustomerId());
+
+        // Store the result for response sending after transaction commit
+        PaymentExecutionResult result = new PaymentExecutionResult(originalPayment, isSuccess, errorMessage);
+        pendingResponses.put(statusDto.getPaymentId(), result);
+
+        // Remove from pending payments as consumption is complete
+        pendingPayments.remove(statusDto.getPaymentId());
+
+        log.debug("Payment consumption completed successfully - PaymentId: {}, removed from pending, queued for response sending",
+                statusDto.getPaymentId());
+
+        // Transaction will commit here, then sendPendingResponse will be called
+        // Call async method to send response after transaction commit
+        sendPendingResponseAsync(statusDto.getPaymentId());
+    }
+
+    /**
+     * Send pending response asynchronously after transaction commit
+     */
+    @Async
+    public void sendPendingResponseAsync(String paymentId) {
+        PaymentExecutionResult result = pendingResponses.get(paymentId);
+        if (result == null) {
+            log.warn("No pending response found for PaymentId: {} - may have been already sent", paymentId);
+            return;
+        }
+
         try {
-            if (PaymentExecutionStatusDto.StatusEnum.OK.equals(statusDto.getStatus())) {
-                log.info("Payment execution successful - Status: success, PaymentId: {}, CustomerId: {}",
-                        statusDto.getPaymentId(), originalPayment.getCustomerId());
-                paymentResponseProducer.sendSuccessResponse(originalPayment);
+            if (result.isSuccess()) {
+                nonTransactionalPaymentResponseProducer.sendSuccessResponse(result.getOriginalPayment());
             } else {
-                log.info("Payment execution failed - Status: error, PaymentId: {}, CustomerId: {}",
-                        statusDto.getPaymentId(), originalPayment.getCustomerId());
-                paymentResponseProducer.sendErrorResponse(originalPayment, "Payment execution failed");
+                nonTransactionalPaymentResponseProducer.sendErrorResponse(result.getOriginalPayment(), result.getErrorMessage());
             }
 
-            pendingPayments.remove(statusDto.getPaymentId());
-            completedPayments.put(statusDto.getPaymentId(), true);
+            // Mark as completed and remove from pending responses
+            completedPayments.put(paymentId, true);
+            pendingResponses.remove(paymentId);
 
-            log.debug("Payment processing completed successfully - PaymentId: {}, removed from pending, marked as completed",
-                    statusDto.getPaymentId());
+            log.info("Payment response sent successfully after transaction commit - PaymentId: {}, Status: {}",
+                    paymentId, result.isSuccess() ? "success" : "error");
 
         } catch (Exception e) {
-            log.error("Failed to send payment response - keeping payment in pending state for retry - PaymentId: {}, ErrorMessage: {}, ErrorType: {}",
-                    statusDto.getPaymentId(), e.getMessage(), e.getClass().getSimpleName());
-            throw e;
+            log.error("Failed to send payment response after transaction commit - PaymentId: {}, ErrorMessage: {}, ErrorType: {}. " +
+                            "Response will remain in pending state for retry on next startup.",
+                    paymentId, e.getMessage(), e.getClass().getSimpleName(), e);
+            // Note: We don't remove from pendingResponses so it can be retried on startup
+        }
+    }
+
+    /**
+     * Process any pending responses on application startup
+     * This handles cases where the application restarted after consuming messages but before sending responses
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    public void processPendingResponsesOnStartup() {
+        if (pendingResponses.isEmpty()) {
+            log.info("No pending responses found on startup");
+            return;
+        }
+
+        log.info("Found {} pending responses on startup - processing them now", pendingResponses.size());
+
+        // Process all pending responses
+        for (String paymentId : pendingResponses.keySet()) {
+            log.info("Processing pending response on startup - PaymentId: {}", paymentId);
+            sendPendingResponseAsync(paymentId);
         }
     }
 

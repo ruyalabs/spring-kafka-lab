@@ -5,6 +5,7 @@ import ch.ruyalabs.springkafkalab.client.PaymentExecutionClient;
 import ch.ruyalabs.springkafkalab.dto.PaymentDto;
 import ch.ruyalabs.springkafkalab.exception.AccountNotFoundException;
 import ch.ruyalabs.springkafkalab.exception.InsufficientBalanceException;
+import ch.ruyalabs.springkafkalab.exception.ServiceUnavailableException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -58,6 +59,14 @@ public class PaymentRequestConsumer {
             log.error("Payment request failed due to account not found - PaymentId: {}, CustomerId: {}, ErrorMessage: {}",
                     paymentDto.getPaymentId(), paymentDto.getCustomerId(), e.getMessage());
             paymentResponseProducer.sendErrorResponse(paymentDto, e.getMessage());
+        } catch (ServiceUnavailableException e) {
+            log.error("Payment request failed due to service unavailable - PaymentId: {}, CustomerId: {}, ErrorMessage: {}",
+                    paymentDto.getPaymentId(), paymentDto.getCustomerId(), e.getMessage());
+            paymentResponseProducer.sendErrorResponse(paymentDto, e.getMessage());
+        } catch (Exception e) {
+            log.error("Payment request failed due to unexpected error - PaymentId: {}, CustomerId: {}, ErrorType: {}, ErrorMessage: {}",
+                    paymentDto.getPaymentId(), paymentDto.getCustomerId(), e.getClass().getSimpleName(), e.getMessage());
+            paymentResponseProducer.sendErrorResponse(paymentDto, "Payment processing failed due to unexpected error: " + e.getMessage());
         }
     }
 

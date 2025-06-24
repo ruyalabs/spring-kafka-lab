@@ -72,17 +72,17 @@ public class KafkaConsumerConfig {
                         PaymentResponseDto errorResponse = createErrorResponse(paymentDto,
                                 "Payment processing failed. Error: " + exception.getMessage());
 
-                        nonTransactionalKafkaTemplate.send(paymentResponseTopic, paymentDto.getPaymentId(), errorResponse);
+                        nonTransactionalKafkaTemplate.send(paymentResponseTopic, paymentDto.getPaymentId(), errorResponse).get();
                         log.info("Error response sent successfully - PaymentId: {}, CustomerId: {}",
                                 paymentDto.getPaymentId(), paymentDto.getCustomerId());
                     } catch (Exception e) {
                         log.error("CRITICAL: Failed to send error response - Topic: {}, Partition: {}, Offset: {}, Key: {}, " +
                                         "OriginalErrorType: {}, OriginalErrorMessage: {}, SendErrorType: {}, SendErrorMessage: {}. " +
-                                        "This violates the exactly-one-response guarantee and requires MANUAL INTERVENTION. " +
-                                        "The poison pill message will be committed to prevent partition blocking.",
+                                        "This violates the exactly-one-response guarantee. Throwing exception to prevent offset commit.",
                                 consumerRecord.topic(), consumerRecord.partition(), consumerRecord.offset(),
                                 consumerRecord.key(), exception.getClass().getSimpleName(), exception.getMessage(),
                                 e.getClass().getSimpleName(), e.getMessage(), e);
+                        throw new RuntimeException("Failed to send error response for payment request", e);
                     }
                 },
                 new FixedBackOff(0L, 0L)
@@ -121,17 +121,17 @@ public class KafkaConsumerConfig {
                                 .status(PaymentResponseDto.StatusEnum.ERROR)
                                 .errorInfo("Payment execution status processing failed. Error: " + exception.getMessage());
 
-                        nonTransactionalKafkaTemplate.send(paymentResponseTopic, statusDto.getPaymentId(), errorResponse);
+                        nonTransactionalKafkaTemplate.send(paymentResponseTopic, statusDto.getPaymentId(), errorResponse).get();
                         log.info("Error response sent successfully for status message - PaymentId: {}",
                                 statusDto.getPaymentId());
                     } catch (Exception e) {
                         log.error("CRITICAL: Failed to send error response for status message - Topic: {}, Partition: {}, Offset: {}, Key: {}, " +
                                         "OriginalErrorType: {}, OriginalErrorMessage: {}, SendErrorType: {}, SendErrorMessage: {}. " +
-                                        "This violates the exactly-one-response guarantee and requires MANUAL INTERVENTION. " +
-                                        "The poison pill message will be committed to prevent partition blocking.",
+                                        "This violates the exactly-one-response guarantee. Throwing exception to prevent offset commit.",
                                 consumerRecord.topic(), consumerRecord.partition(), consumerRecord.offset(),
                                 consumerRecord.key(), exception.getClass().getSimpleName(), exception.getMessage(),
                                 e.getClass().getSimpleName(), e.getMessage(), e);
+                        throw new RuntimeException("Failed to send error response for payment execution status", e);
                     }
                 },
                 new FixedBackOff(0L, 0L)
