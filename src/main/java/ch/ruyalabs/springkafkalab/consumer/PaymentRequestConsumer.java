@@ -9,8 +9,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.kafka.support.KafkaHeaders;
-import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,22 +27,10 @@ public class PaymentRequestConsumer {
             containerFactory = "paymentRequestKafkaListenerContainerFactory"
     )
     @Transactional(transactionManager = "kafkaTransactionManager", rollbackFor = Exception.class)
-    public void consume(@Payload @Valid PaymentDto paymentDto,
-                        @Header(value = KafkaHeaders.DELIVERY_ATTEMPT, required = false) Integer deliveryAttempt) throws Exception {
+    public void consume(@Payload @Valid PaymentDto paymentDto) throws Exception {
 
-        log.info("Payment request consumed from Kafka topic: payment-request - PaymentId: {}, CustomerId: {}, Amount: {} {}, DeliveryAttempt: {}, Operation: payment_request_processing",
-                paymentDto.getPaymentId(), paymentDto.getCustomerId(), paymentDto.getAmount(), paymentDto.getCurrency(), deliveryAttempt);
-
-        if (deliveryAttempt != null && deliveryAttempt > 3) {
-            log.warn("Poison pill detected - message has been retried {} times - PaymentId: {}, CustomerId: {}",
-                    deliveryAttempt, paymentDto.getPaymentId(), paymentDto.getCustomerId());
-
-            String poisonPillErrorMessage = "Payment processing failed after multiple attempts. Message marked as poison pill.";
-            paymentResponseProducer.sendErrorResponse(paymentDto, poisonPillErrorMessage);
-            log.info("Poison pill error response sent successfully - PaymentId: {}, CustomerId: {}",
-                    paymentDto.getPaymentId(), paymentDto.getCustomerId());
-            return;
-        }
+        log.info("Payment request consumed from Kafka topic: payment-request - PaymentId: {}, CustomerId: {}, Amount: {} {}, Operation: payment_request_processing",
+                paymentDto.getPaymentId(), paymentDto.getCustomerId(), paymentDto.getAmount(), paymentDto.getCurrency());
 
         try {
             boolean balanceCheckResult = balanceCheckClient.checkBalance(

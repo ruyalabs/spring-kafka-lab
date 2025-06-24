@@ -43,7 +43,7 @@ class PaymentRequestConsumerTest {
         when(balanceCheckClient.checkBalance(anyString(), any())).thenReturn(true);
 
         // When
-        paymentRequestConsumer.consume(paymentDto, null);
+        paymentRequestConsumer.consume(paymentDto);
 
         // Then
         verify(balanceCheckClient).checkBalance(paymentDto.getCustomerId(), paymentDto.getAmount());
@@ -60,7 +60,7 @@ class PaymentRequestConsumerTest {
         when(balanceCheckClient.checkBalance(anyString(), any())).thenReturn(false);
 
         // When
-        paymentRequestConsumer.consume(paymentDto, null);
+        paymentRequestConsumer.consume(paymentDto);
 
         // Then
         verify(balanceCheckClient).checkBalance(paymentDto.getCustomerId(), paymentDto.getAmount());
@@ -77,7 +77,7 @@ class PaymentRequestConsumerTest {
 
         // When & Then - Exception should propagate to DefaultErrorHandler
         Exception exception = assertThrows(RuntimeException.class, () -> {
-            paymentRequestConsumer.consume(paymentDto, null);
+            paymentRequestConsumer.consume(paymentDto);
         });
 
         assertEquals("Balance check failed", exception.getMessage());
@@ -95,7 +95,7 @@ class PaymentRequestConsumerTest {
 
         // When & Then - Original exception should propagate to DefaultErrorHandler
         Exception exception = assertThrows(RuntimeException.class, () -> {
-            paymentRequestConsumer.consume(paymentDto, null);
+            paymentRequestConsumer.consume(paymentDto);
         });
 
         assertEquals("Balance check failed", exception.getMessage());
@@ -105,57 +105,6 @@ class PaymentRequestConsumerTest {
         verify(paymentResponseProducer, never()).sendErrorResponse(any(), any());
     }
 
-    @Test
-    void testPoisonPillDetectionWithSuccessfulErrorResponse() throws Exception {
-        // Given
-        PaymentDto paymentDto = createTestPaymentDto();
-        Integer deliveryAttempt = 4; // Above threshold of 3
-
-        // When
-        paymentRequestConsumer.consume(paymentDto, deliveryAttempt);
-
-        // Then
-        verify(balanceCheckClient, never()).checkBalance(any(), any());
-        verify(paymentExecutionClient, never()).requestPaymentExecution(any());
-        verify(paymentResponseProducer, never()).sendSuccessResponse(any());
-        verify(paymentResponseProducer).sendErrorResponse(eq(paymentDto), contains("poison pill"));
-    }
-
-    @Test
-    void testPoisonPillDetectionWithFailedErrorResponse() throws Exception {
-        // Given
-        PaymentDto paymentDto = createTestPaymentDto();
-        Integer deliveryAttempt = 5; // Above threshold of 3
-        doThrow(new RuntimeException("Kafka unavailable")).when(paymentResponseProducer).sendErrorResponse(any(), any());
-
-        // When & Then - should throw exception to ensure exactly-one-response guarantee
-        Exception exception = assertThrows(RuntimeException.class, () -> {
-            paymentRequestConsumer.consume(paymentDto, deliveryAttempt);
-        });
-
-        assertEquals("Kafka unavailable", exception.getMessage());
-        verify(balanceCheckClient, never()).checkBalance(any(), any());
-        verify(paymentExecutionClient, never()).requestPaymentExecution(any());
-        verify(paymentResponseProducer, never()).sendSuccessResponse(any());
-        verify(paymentResponseProducer).sendErrorResponse(eq(paymentDto), contains("poison pill"));
-    }
-
-    @Test
-    void testNormalProcessingWithLowDeliveryAttempt() throws Exception {
-        // Given
-        PaymentDto paymentDto = createTestPaymentDto();
-        Integer deliveryAttempt = 2; // Below threshold of 3
-        when(balanceCheckClient.checkBalance(anyString(), any())).thenReturn(true);
-
-        // When
-        paymentRequestConsumer.consume(paymentDto, deliveryAttempt);
-
-        // Then - should process normally, not as poison pill
-        verify(balanceCheckClient).checkBalance(paymentDto.getCustomerId(), paymentDto.getAmount());
-        verify(paymentExecutionClient).requestPaymentExecution(paymentDto);
-        // No immediate success response is sent - response will be sent by PaymentExecutionStatusConsumer
-        verify(paymentResponseProducer, never()).sendSuccessResponse(any());
-    }
 
     private PaymentDto createTestPaymentDto() {
         PaymentDto paymentDto = new PaymentDto();
