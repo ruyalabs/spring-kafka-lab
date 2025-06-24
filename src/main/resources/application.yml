@@ -46,10 +46,17 @@ app:
 
   simulation:
     balance-check:
-      simulate-insufficient-balance: false
-      simulate-account-not-found: false
-      simulate-service-unavailable: true
+      # NON-RETRYABLE EXCEPTIONS (Business Logic Errors - Will NOT be retried)
+      simulate-insufficient-balance: false          # Throws: InsufficientBalanceException
+      simulate-account-not-found: false             # Throws: AccountNotFoundException
+
+      # RETRYABLE EXCEPTIONS (Infrastructure/Temporary Issues - Will be retried)
+      simulate-service-unavailable: true            # Throws: ServiceUnavailableException
+
     payment-execution:
-      simulate-payment-processing-exception: false
-      simulate-invalid-payment-method-exception: false
-      simulate-gateway-timeout-exception: false
+      # NON-RETRYABLE EXCEPTIONS (Business Logic Errors - Will NOT be retried)
+      simulate-payment-processing-exception: false  # Throws: PaymentProcessingException
+      simulate-invalid-payment-method-exception: false # Throws: InvalidPaymentMethodException
+
+      # RETRYABLE EXCEPTIONS (Infrastructure/Temporary Issues - Will be retried)
+      simulate-gateway-timeout-exception: false     # Throws: GatewayTimeoutException
