@@ -2,6 +2,7 @@ package ch.ruyalabs.springkafkalab.config;
 
 import ch.ruyalabs.springkafkalab.dto.PaymentDto;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
@@ -10,10 +11,13 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
+import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.util.backoff.FixedBackOff;
 
 import java.util.HashMap;
 import java.util.Map;
 
+@Slf4j
 @Configuration
 @RequiredArgsConstructor
 public class KafkaConsumerConfig {
@@ -45,6 +49,19 @@ public class KafkaConsumerConfig {
         factory.setConsumerFactory(paymentRequestConsumerFactory());
         factory.setConcurrency(1);
         factory.setBatchListener(false);
+
+        // Configure explicit error handler with 3 retries to make retry behavior explicit
+        // This aligns with the poison pill detection logic that triggers after 3 delivery attempts
+        DefaultErrorHandler errorHandler = new DefaultErrorHandler(
+            (consumerRecord, exception) -> {
+                log.error("Message processing failed after all retries - Topic: {}, Partition: {}, Offset: {}, Key: {}, ErrorType: {}, ErrorMessage: {}",
+                    consumerRecord.topic(), consumerRecord.partition(), consumerRecord.offset(), 
+                    consumerRecord.key(), exception.getClass().getSimpleName(), exception.getMessage(), exception);
+            },
+            new FixedBackOff(1000L, 3L) // 1 second interval, 3 retries
+        );
+
+        factory.setCommonErrorHandler(errorHandler);
         return factory;
     }
 }

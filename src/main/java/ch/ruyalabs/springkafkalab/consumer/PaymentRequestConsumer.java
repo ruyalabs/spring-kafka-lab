@@ -28,17 +28,15 @@ public class PaymentRequestConsumer {
     )
     @Transactional(transactionManager = "kafkaTransactionManager", rollbackFor = Exception.class)
     public void consume(@Payload @Valid PaymentDto paymentDto,
-                       @Header(value = KafkaHeaders.DELIVERY_ATTEMPT, required = false) Integer deliveryAttempt) throws Exception {
+                        @Header(value = KafkaHeaders.DELIVERY_ATTEMPT, required = false) Integer deliveryAttempt) throws Exception {
 
         log.info("Payment request consumed from Kafka topic: payment-request - PaymentId: {}, CustomerId: {}, Amount: {} {}, DeliveryAttempt: {}, Operation: payment_request_processing",
                 paymentDto.getPaymentId(), paymentDto.getCustomerId(), paymentDto.getAmount(), paymentDto.getCurrency(), deliveryAttempt);
 
-        // Poison pill detection: if this message has been retried too many times, handle it specially
         if (deliveryAttempt != null && deliveryAttempt > 3) {
             log.warn("Poison pill detected - message has been retried {} times - PaymentId: {}, CustomerId: {}",
                     deliveryAttempt, paymentDto.getPaymentId(), paymentDto.getCustomerId());
 
-            // Send a specific error response for poison pill and commit the transaction to break the retry loop
             try {
                 String poisonPillErrorMessage = "Payment processing failed after multiple attempts. Message marked as poison pill.";
                 paymentResponseProducer.sendErrorResponse(paymentDto, poisonPillErrorMessage);
@@ -47,9 +45,11 @@ public class PaymentRequestConsumer {
             } catch (Exception e) {
                 log.error("Failed to send poison pill error response - PaymentId: {}, CustomerId: {}, ErrorType: {}, ErrorMessage: {}",
                         paymentDto.getPaymentId(), paymentDto.getCustomerId(), e.getClass().getSimpleName(), e.getMessage(), e);
-                // Even if sending poison pill response fails, we still want to commit to break the retry loop
+
+                log.warn("Proceeding with transaction commit despite poison pill response failure to unblock partition - PaymentId: {}, CustomerId: {}",
+                        paymentDto.getPaymentId(), paymentDto.getCustomerId());
             }
-            return; // Exit successfully to commit the transaction
+            return;
         }
 
         try {
@@ -71,8 +71,6 @@ public class PaymentRequestConsumer {
         } catch (Exception e) {
             log.error("Exception occurred while processing payment request - PaymentId: {}, CustomerId: {}, ErrorType: {}, ErrorMessage: {}",
                     paymentDto.getPaymentId(), paymentDto.getCustomerId(), e.getClass().getSimpleName(), e.getMessage(), e);
-
-            // Send error response - if this fails, let the exception propagate to trigger transaction rollback
             String errorMessage = buildErrorMessage(e);
             paymentResponseProducer.sendErrorResponse(paymentDto, errorMessage);
             log.info("Error response sent successfully for failed payment - PaymentId: {}, CustomerId: {}",
