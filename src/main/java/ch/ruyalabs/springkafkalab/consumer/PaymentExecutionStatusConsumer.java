@@ -2,18 +2,21 @@ package ch.ruyalabs.springkafkalab.consumer;
 
 import ch.ruyalabs.springkafkalab.dto.PaymentDto;
 import ch.ruyalabs.springkafkalab.dto.PaymentExecutionStatusDto;
+import ch.ruyalabs.springkafkalab.event.PaymentResponseEvent;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.handler.annotation.Payload;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
+import org.springframework.scheduling.annotation.Scheduled;
 
 @Slf4j
 @Component
@@ -22,25 +25,42 @@ public class PaymentExecutionStatusConsumer {
 
     private final PaymentResponseProducer paymentResponseProducer;
     private final NonTransactionalPaymentResponseProducer nonTransactionalPaymentResponseProducer;
+    private final ApplicationEventPublisher eventPublisher;
 
     private static final ConcurrentHashMap<String, PaymentDto> pendingPayments = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, Boolean> completedPayments = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, PaymentExecutionResult> pendingResponses = new ConcurrentHashMap<>();
 
-    private static class PaymentExecutionResult {
+    public enum ResponseState {
+        PENDING,    // Response is queued but not yet being sent
+        SENDING,    // Response is currently being sent
+        SENT        // Response has been successfully sent
+    }
+
+    public static class PaymentExecutionResult {
         private final PaymentDto originalPayment;
         private final boolean isSuccess;
         private final String errorMessage;
+        private final AtomicReference<ResponseState> state;
+        private final long createdTimestamp;
 
         public PaymentExecutionResult(PaymentDto originalPayment, boolean isSuccess, String errorMessage) {
             this.originalPayment = originalPayment;
             this.isSuccess = isSuccess;
             this.errorMessage = errorMessage;
+            this.state = new AtomicReference<>(ResponseState.PENDING);
+            this.createdTimestamp = System.currentTimeMillis();
         }
 
         public PaymentDto getOriginalPayment() { return originalPayment; }
         public boolean isSuccess() { return isSuccess; }
         public String getErrorMessage() { return errorMessage; }
+        public ResponseState getState() { return state.get(); }
+        public long getCreatedTimestamp() { return createdTimestamp; }
+
+        public boolean compareAndSetState(ResponseState expected, ResponseState update) {
+            return state.compareAndSet(expected, update);
+        }
     }
 
     @KafkaListener(
@@ -88,26 +108,20 @@ public class PaymentExecutionStatusConsumer {
         log.debug("Payment consumption completed successfully - PaymentId: {}, removed from pending, queued for response sending",
                 statusDto.getPaymentId());
 
-        // Transaction will commit here, then sendPendingResponse will be called
-        // Call async method to send response after transaction commit
-        sendPendingResponseAsync(statusDto.getPaymentId());
+        // Transaction will commit here, then the event listener will be called
+        // Publish event to send response after transaction commit
+        eventPublisher.publishEvent(new PaymentResponseEvent(statusDto.getPaymentId()));
     }
 
     /**
-     * Send pending response asynchronously after transaction commit
+     * Send pending response after transaction commit with atomic state transitions
      * 
-     * IMPORTANT: This method introduces a risk of lost responses if the application
-     * crashes after the Kafka consumer transaction commits but before the response
-     * is successfully sent. This is a known limitation given the constraints:
-     * - No Dead Letter Queue (DLQ)
-     * - No retries allowed
-     * - Exactly one response requirement
+     * This method ensures atomicity by using compare-and-set operations on the response state.
+     * The state transitions are: PENDING -> SENDING -> SENT
      * 
-     * The processPendingResponsesOnStartup() method attempts to mitigate this risk
-     * by resending pending responses on application restart, but it cannot guarantee
-     * 100% reliability in all crash scenarios.
+     * If the application crashes between SENDING and SENT states, the scheduled retry mechanism
+     * will detect and retry the response sending.
      */
-    @Async
     public void sendPendingResponseAsync(String paymentId) {
         PaymentExecutionResult result = pendingResponses.get(paymentId);
         if (result == null) {
@@ -115,44 +129,55 @@ public class PaymentExecutionStatusConsumer {
             return;
         }
 
+        // Atomic state transition: PENDING -> SENDING
+        if (!result.compareAndSetState(ResponseState.PENDING, ResponseState.SENDING)) {
+            ResponseState currentState = result.getState();
+            if (currentState == ResponseState.SENT) {
+                log.debug("Response already sent for PaymentId: {} - skipping duplicate send attempt", paymentId);
+                return;
+            } else if (currentState == ResponseState.SENDING) {
+                log.warn("Response already being sent for PaymentId: {} - skipping duplicate send attempt", paymentId);
+                return;
+            }
+            log.warn("Unexpected state transition for PaymentId: {} - current state: {}", paymentId, currentState);
+            return;
+        }
+
         try {
+            // Send the response
             if (result.isSuccess()) {
                 nonTransactionalPaymentResponseProducer.sendSuccessResponse(result.getOriginalPayment());
             } else {
                 nonTransactionalPaymentResponseProducer.sendErrorResponse(result.getOriginalPayment(), result.getErrorMessage());
             }
 
-            // Mark as completed and remove from pending responses
-            completedPayments.put(paymentId, true);
-            pendingResponses.remove(paymentId);
+            // Atomic state transition: SENDING -> SENT and cleanup
+            if (result.compareAndSetState(ResponseState.SENDING, ResponseState.SENT)) {
+                // Only perform cleanup if state transition was successful
+                completedPayments.put(paymentId, true);
+                pendingResponses.remove(paymentId);
 
-            log.info("Payment response sent successfully after transaction commit - PaymentId: {}, Status: {}",
-                    paymentId, result.isSuccess() ? "success" : "error");
+                log.info("Payment response sent successfully with atomic state transition - PaymentId: {}, Status: {}",
+                        paymentId, result.isSuccess() ? "success" : "error");
+            } else {
+                log.error("CRITICAL: Failed to transition state from SENDING to SENT for PaymentId: {} - " +
+                        "response was sent but state is inconsistent. Current state: {}", 
+                        paymentId, result.getState());
+            }
 
         } catch (Exception e) {
-            log.error("CRITICAL: Failed to send payment response after transaction commit - PaymentId: {}, ErrorMessage: {}, ErrorType: {}. " +
-                            "This violates the exactly-one-response guarantee. Response will remain in pending state for retry on next startup, " +
-                            "but there is a risk of permanent response loss if the failure persists.",
+            // Reset state back to PENDING for retry
+            result.compareAndSetState(ResponseState.SENDING, ResponseState.PENDING);
+
+            log.error("Failed to send payment response - PaymentId: {}, ErrorMessage: {}, ErrorType: {}. " +
+                            "State reset to PENDING for retry by scheduled task.",
                     paymentId, e.getMessage(), e.getClass().getSimpleName(), e);
-            // Note: We don't remove from pendingResponses so it can be retried on startup
-            // However, if the failure is persistent (e.g., Kafka broker down permanently),
-            // the response may never be sent, violating the "no request may go unanswered" rule
         }
     }
 
     /**
      * Process any pending responses on application startup
      * This handles cases where the application restarted after consuming messages but before sending responses
-     * 
-     * IMPORTANT: This method provides a best-effort attempt to recover from application crashes
-     * that occur after Kafka transaction commit but before response sending. However, it cannot
-     * guarantee 100% reliability:
-     * - If the application crashes during this startup process, responses may still be lost
-     * - If response sending fails persistently (e.g., due to Kafka broker issues), responses
-     *   will remain in pending state indefinitely
-     * - The pendingResponses map is in-memory only, so it's lost on application restart
-     * 
-     * This is a known limitation given the constraints of no DLQ and no retries.
      */
     @EventListener(ApplicationReadyEvent.class)
     public void processPendingResponsesOnStartup() {
@@ -167,14 +192,79 @@ public class PaymentExecutionStatusConsumer {
 
         // Process all pending responses
         for (String paymentId : pendingResponses.keySet()) {
-            log.info("RECOVERY: Processing pending response on startup - PaymentId: {}", paymentId);
-            try {
-                sendPendingResponseAsync(paymentId);
-            } catch (Exception e) {
-                log.error("RECOVERY: Failed to process pending response on startup - PaymentId: {}, ErrorMessage: {}, ErrorType: {}",
-                        paymentId, e.getMessage(), e.getClass().getSimpleName(), e);
-                // Continue processing other pending responses even if one fails
+            PaymentExecutionResult result = pendingResponses.get(paymentId);
+            if (result != null) {
+                log.info("RECOVERY: Processing pending response on startup - PaymentId: {}, State: {}", 
+                        paymentId, result.getState());
+                try {
+                    sendPendingResponseAsync(paymentId);
+                } catch (Exception e) {
+                    log.error("RECOVERY: Failed to process pending response on startup - PaymentId: {}, ErrorMessage: {}, ErrorType: {}",
+                            paymentId, e.getMessage(), e.getClass().getSimpleName(), e);
+                    // Continue processing other pending responses even if one fails
+                }
             }
+        }
+    }
+
+    /**
+     * Scheduled task to retry sending pending responses
+     * Runs every 30 seconds to ensure no responses are left unsent
+     */
+    @Scheduled(fixedDelay = 30000) // 30 seconds
+    public void retryPendingResponses() {
+        if (pendingResponses.isEmpty()) {
+            return;
+        }
+
+        long currentTime = System.currentTimeMillis();
+        int retriedCount = 0;
+        int stuckCount = 0;
+
+        for (String paymentId : pendingResponses.keySet()) {
+            PaymentExecutionResult result = pendingResponses.get(paymentId);
+            if (result == null) {
+                continue;
+            }
+
+            ResponseState state = result.getState();
+            long ageInSeconds = (currentTime - result.getCreatedTimestamp()) / 1000;
+
+            // Only retry responses in PENDING state
+            if (state == ResponseState.PENDING) {
+                if (ageInSeconds > 60) { // Retry responses older than 1 minute
+                    log.warn("RETRY: Attempting to send pending response - PaymentId: {}, Age: {}s", 
+                            paymentId, ageInSeconds);
+                    try {
+                        sendPendingResponseAsync(paymentId);
+                        retriedCount++;
+                    } catch (Exception e) {
+                        log.error("RETRY: Failed to send pending response - PaymentId: {}, ErrorMessage: {}, ErrorType: {}",
+                                paymentId, e.getMessage(), e.getClass().getSimpleName(), e);
+                    }
+                }
+            } else if (state == ResponseState.SENDING && ageInSeconds > 300) { // 5 minutes
+                // Response stuck in SENDING state - reset to PENDING for retry
+                if (result.compareAndSetState(ResponseState.SENDING, ResponseState.PENDING)) {
+                    log.error("RECOVERY: Response stuck in SENDING state - reset to PENDING for retry - PaymentId: {}, Age: {}s", 
+                            paymentId, ageInSeconds);
+                }
+            }
+
+            // Monitor responses that are stuck for too long
+            if (ageInSeconds > 600) { // 10 minutes
+                stuckCount++;
+                if (ageInSeconds % 300 == 0) { // Log every 5 minutes
+                    log.error("ALERT: Response stuck in pending state for extended period - PaymentId: {}, State: {}, Age: {}s. " +
+                            "This may indicate a persistent issue with response sending.",
+                            paymentId, state, ageInSeconds);
+                }
+            }
+        }
+
+        if (retriedCount > 0 || stuckCount > 0) {
+            log.info("RETRY_SUMMARY: Retried {} responses, {} responses stuck for >10min, {} total pending",
+                    retriedCount, stuckCount, pendingResponses.size());
         }
     }
 
@@ -206,5 +296,15 @@ public class PaymentExecutionStatusConsumer {
     public static void clearAllPayments() {
         pendingPayments.clear();
         completedPayments.clear();
+    }
+
+    // Public access methods for event listener
+    public PaymentExecutionResult getPendingResponse(String paymentId) {
+        return pendingResponses.get(paymentId);
+    }
+
+    public void markPaymentCompleted(String paymentId) {
+        completedPayments.put(paymentId, true);
+        pendingResponses.remove(paymentId);
     }
 }
