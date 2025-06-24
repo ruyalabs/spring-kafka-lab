@@ -2,18 +2,14 @@ package ch.ruyalabs.springkafkalab;
 
 import ch.ruyalabs.springkafkalab.client.BalanceCheckClient;
 import ch.ruyalabs.springkafkalab.client.PaymentExecutionClient;
-import ch.ruyalabs.springkafkalab.dto.PaymentDto;
-import ch.ruyalabs.springkafkalab.exception.InsufficientBalanceException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.math.BigDecimal;
-
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(MockitoExtension.class)
 class StructuredLoggingTest {
@@ -22,10 +18,8 @@ class StructuredLoggingTest {
 
     @Test
     void testSimpleLoggingConfiguration() {
-        // Test that simple logging is properly configured
         log.info("Testing simple logging configuration - Event: test_start, TestName: testSimpleLoggingConfiguration");
 
-        // This test verifies that the logging dependencies are properly loaded
         // and that simple logging works without errors
         assertTrue(true, "Simple logging configuration test passed");
 

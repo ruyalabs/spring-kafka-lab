@@ -2,7 +2,6 @@ package ch.ruyalabs.springkafkalab.consumer;
 
 import ch.ruyalabs.springkafkalab.dto.PaymentDto;
 import ch.ruyalabs.springkafkalab.dto.PaymentResponseDto;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -72,47 +71,45 @@ public class PaymentResponseProducer {
     private PaymentResponseDto createGenericDeserializationErrorResponse(String errorMessage) {
         return new PaymentResponseDto()
                 .paymentId("UNKNOWN")
-                .amount(0.01) // Minimum valid amount to satisfy validation
-                .currency("USD") // Default currency
-                .paymentMethod(PaymentResponseDto.PaymentMethodEnum.CREDIT_CARD) // Default payment method
+                .amount(0.01)
+                .currency("USD")
+                .paymentMethod(PaymentResponseDto.PaymentMethodEnum.CREDIT_CARD)
                 .customerId("UNKNOWN")
                 .status(PaymentResponseDto.StatusEnum.ERROR)
                 .errorInfo(errorMessage);
     }
 
     private void sendResponse(PaymentResponseDto response, String paymentId) throws Exception {
-        log.info("Sending payment response to Kafka topic - Operation: payment_response_sending, PaymentId: {}, CustomerId: {}, Status: {}, Topic: {}", 
+        log.info("Sending payment response to Kafka topic - Operation: payment_response_sending, PaymentId: {}, CustomerId: {}, Status: {}, Topic: {}",
                 paymentId, response.getCustomerId(), response.getStatus(), paymentResponseTopic);
 
         try {
-            // Use synchronous send for transactional context
             SendResult<String, PaymentResponseDto> result =
                     kafkaTemplate.send(paymentResponseTopic, paymentId, response).get();
 
-            log.info("Payment response sent successfully to Kafka topic - PaymentId: {}, Topic: {}, Offset: {}, Partition: {}", 
+            log.info("Payment response sent successfully to Kafka topic - PaymentId: {}, Topic: {}, Offset: {}, Partition: {}",
                     paymentId, paymentResponseTopic, result.getRecordMetadata().offset(), result.getRecordMetadata().partition());
         } catch (Exception e) {
-            log.error("Failed to send payment response to Kafka topic - PaymentId: {}, Topic: {}, ErrorMessage: {}, ErrorType: {}", 
+            log.error("Failed to send payment response to Kafka topic - PaymentId: {}, Topic: {}, ErrorMessage: {}, ErrorType: {}",
                     paymentId, paymentResponseTopic, e.getMessage(), e.getClass().getSimpleName(), e);
-            throw e; // Propagate the original exception instead of wrapping it
+            throw e;
         }
     }
 
     private void sendResponseNonTransactional(PaymentResponseDto response, String paymentId) throws Exception {
-        log.info("Sending payment response to Kafka topic using non-transactional template - Operation: payment_response_sending_non_transactional, PaymentId: {}, CustomerId: {}, Status: {}, Topic: {}", 
+        log.info("Sending payment response to Kafka topic using non-transactional template - Operation: payment_response_sending_non_transactional, PaymentId: {}, CustomerId: {}, Status: {}, Topic: {}",
                 paymentId, response.getCustomerId(), response.getStatus(), paymentResponseTopic);
 
         try {
-            // Use non-transactional template for error recovery scenarios
             SendResult<String, PaymentResponseDto> result =
                     nonTransactionalKafkaTemplate.send(paymentResponseTopic, paymentId, response).get();
 
-            log.info("Payment response sent successfully to Kafka topic using non-transactional template - PaymentId: {}, Topic: {}, Offset: {}, Partition: {}", 
+            log.info("Payment response sent successfully to Kafka topic using non-transactional template - PaymentId: {}, Topic: {}, Offset: {}, Partition: {}",
                     paymentId, paymentResponseTopic, result.getRecordMetadata().offset(), result.getRecordMetadata().partition());
         } catch (Exception e) {
-            log.error("Failed to send payment response to Kafka topic using non-transactional template - PaymentId: {}, Topic: {}, ErrorMessage: {}, ErrorType: {}", 
+            log.error("Failed to send payment response to Kafka topic using non-transactional template - PaymentId: {}, Topic: {}, ErrorMessage: {}, ErrorType: {}",
                     paymentId, paymentResponseTopic, e.getMessage(), e.getClass().getSimpleName(), e);
-            throw e; // Propagate the original exception instead of wrapping it
+            throw e;
         }
     }
 }

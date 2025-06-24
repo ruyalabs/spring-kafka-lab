@@ -29,7 +29,6 @@ public class PaymentRequestErrorHandler extends DefaultErrorHandler {
                                       @Value("${app.kafka.error-handler.retry.max-elapsed-time}") long maxElapsedTime) {
         super(new PaymentRequestRecoverer(paymentResponseProducer), createExponentialBackOff(initialInterval, multiplier, maxInterval, maxElapsedTime));
 
-        // Configure business exceptions to not be retried
         addNotRetryableExceptions(
                 InsufficientBalanceException.class,
                 AccountNotFoundException.class,
@@ -53,7 +52,7 @@ public class PaymentRequestErrorHandler extends DefaultErrorHandler {
                                 Consumer<?, ?> consumer,
                                 org.springframework.kafka.listener.MessageListenerContainer container) {
 
-        log.error("Error handler processing remaining records after retries exhausted - Operation: error_handling, ErrorHandlerType: handleRemaining, RecordCount: {}, ExceptionType: {}, ExceptionMessage: {}", 
+        log.error("Error handler processing remaining records after retries exhausted - Operation: error_handling, ErrorHandlerType: handleRemaining, RecordCount: {}, ExceptionType: {}, ExceptionMessage: {}",
                 records.size(), thrownException.getClass().getSimpleName(), thrownException.getMessage());
 
         for (org.apache.kafka.clients.consumer.ConsumerRecord<?, ?> record : records) {
@@ -76,7 +75,7 @@ public class PaymentRequestErrorHandler extends DefaultErrorHandler {
 
     private void logRetryAttempt(org.apache.kafka.clients.consumer.ConsumerRecord<?, ?> record,
                                  Exception exception, String attemptType) {
-        log.error("Error handler processing record retry attempt - Operation: error_handling, AttemptType: {}, Topic: {}, Partition: {}, Offset: {}, Key: {}, ExceptionType: {}, ExceptionMessage: {}", 
+        log.error("Error handler processing record retry attempt - Operation: error_handling, AttemptType: {}, Topic: {}, Partition: {}, Offset: {}, Key: {}, ExceptionType: {}, ExceptionMessage: {}",
                 attemptType, record.topic(), record.partition(), record.offset(), record.key(), exception.getClass().getSimpleName(), exception.getMessage());
     }
 
@@ -88,25 +87,21 @@ public class PaymentRequestErrorHandler extends DefaultErrorHandler {
 
         @Override
         public void accept(ConsumerRecord<?, ?> record, Exception exception) {
-            log.error("Record recoverer processing failed record after all retries exhausted - Operation: record_recovery, Topic: {}, Partition: {}, Offset: {}, Key: {}, ExceptionType: {}, ExceptionMessage: {}", 
+            log.error("Record recoverer processing failed record after all retries exhausted - Operation: record_recovery, Topic: {}, Partition: {}, Offset: {}, Key: {}, ExceptionType: {}, ExceptionMessage: {}",
                     record.topic(), record.partition(), record.offset(), record.key(), exception.getClass().getSimpleName(), exception.getMessage());
 
             try {
-                // Try to extract PaymentDto from the record
                 PaymentDto paymentDto = extractPaymentDto(record, exception);
 
                 if (paymentDto != null) {
                     String errorMessage = buildErrorMessage(exception);
                     paymentResponseProducer.sendErrorResponseNonTransactional(paymentDto, errorMessage);
-                    log.info("Error response sent successfully for failed payment - PaymentId: {}, CustomerId: {}", 
+                    log.info("Error response sent successfully for failed payment - PaymentId: {}, CustomerId: {}",
                             paymentDto.getPaymentId(), paymentDto.getCustomerId());
                 } else {
-                    // Handle case where PaymentDto could not be extracted (e.g., DeserializationException)
                     if (exception instanceof DeserializationException) {
-                        // Log the raw message for manual investigation
                         logRawMessage(record, exception);
 
-                        // Send a generic error response since we can't parse the original request
                         String errorMessage = "Message deserialization failed: " + exception.getMessage();
                         paymentResponseProducer.sendGenericDeserializationErrorResponse(errorMessage);
 
@@ -116,36 +111,33 @@ public class PaymentRequestErrorHandler extends DefaultErrorHandler {
                     }
                 }
             } catch (Exception e) {
-                log.error("Exception occurred while sending error response in recoverer - ErrorType: {}, ErrorMessage: {}", 
+                log.error("Exception occurred while sending error response in recoverer - ErrorType: {}, ErrorMessage: {}",
                         e.getClass().getSimpleName(), e.getMessage());
             }
         }
 
         private PaymentDto extractPaymentDto(ConsumerRecord<?, ?> record, Exception exception) {
             try {
-                // If the record value is already a PaymentDto (successful deserialization)
                 if (record.value() instanceof PaymentDto) {
                     return (PaymentDto) record.value();
                 }
 
-                // If it's a deserialization exception, we might not be able to recover the PaymentDto
                 if (exception instanceof DeserializationException) {
-                    log.warn("Deserialization exception occurred, cannot extract PaymentDto from record - Reason: deserialization_exception, ExceptionType: {}", 
+                    log.warn("Deserialization exception occurred, cannot extract PaymentDto from record - Reason: deserialization_exception, ExceptionType: {}",
                             exception.getClass().getSimpleName());
                     return null;
                 }
 
-                // For other exceptions, the value should be available
                 if (record.value() instanceof PaymentDto) {
                     return (PaymentDto) record.value();
                 }
 
-                log.warn("Record value is not a PaymentDto - Reason: invalid_record_value_type, RecordValueType: {}", 
+                log.warn("Record value is not a PaymentDto - Reason: invalid_record_value_type, RecordValueType: {}",
                         record.value() != null ? record.value().getClass().getSimpleName() : "null");
                 return null;
 
             } catch (Exception e) {
-                log.error("Exception while extracting PaymentDto - ErrorType: {}, ErrorMessage: {}", 
+                log.error("Exception while extracting PaymentDto - ErrorType: {}, ErrorMessage: {}",
                         e.getClass().getSimpleName(), e.getMessage());
                 return null;
             }
@@ -165,7 +157,6 @@ public class PaymentRequestErrorHandler extends DefaultErrorHandler {
 
         private void logRawMessage(ConsumerRecord<?, ?> record, Exception exception) {
             try {
-                // Log the raw message bytes for manual investigation
                 byte[] rawValue = null;
                 if (record.value() instanceof byte[]) {
                     rawValue = (byte[]) record.value();
@@ -176,11 +167,11 @@ public class PaymentRequestErrorHandler extends DefaultErrorHandler {
                 String rawValueHex = rawValue != null ? bytesToHex(rawValue) : "null";
                 String rawValueString = rawValue != null ? new String(rawValue) : "null";
 
-                log.error("Raw message content for manual investigation - Topic: {}, Partition: {}, Offset: {}, Key: {}, RawValueHex: {}, RawValueString: {}, RawValueLength: {}, ExceptionType: {}, ExceptionMessage: {}", 
-                        record.topic(), record.partition(), record.offset(), record.key(), rawValueHex, rawValueString, 
+                log.error("Raw message content for manual investigation - Topic: {}, Partition: {}, Offset: {}, Key: {}, RawValueHex: {}, RawValueString: {}, RawValueLength: {}, ExceptionType: {}, ExceptionMessage: {}",
+                        record.topic(), record.partition(), record.offset(), record.key(), rawValueHex, rawValueString,
                         rawValue != null ? rawValue.length : 0, exception.getClass().getSimpleName(), exception.getMessage());
             } catch (Exception e) {
-                log.error("Failed to log raw message content - ErrorType: {}, ErrorMessage: {}", 
+                log.error("Failed to log raw message content - ErrorType: {}, ErrorMessage: {}",
                         e.getClass().getSimpleName(), e.getMessage());
             }
         }

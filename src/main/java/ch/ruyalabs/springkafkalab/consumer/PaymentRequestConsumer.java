@@ -21,14 +21,14 @@ public class PaymentRequestConsumer {
     private final PaymentResponseProducer paymentResponseProducer;
 
     @KafkaListener(
-            topics = "${app.kafka.topics.payment-request}", 
+            topics = "${app.kafka.topics.payment-request}",
             containerFactory = "paymentRequestKafkaListenerContainerFactory"
     )
     @Transactional(transactionManager = "kafkaTransactionManager", rollbackFor = Exception.class)
-    public void consume(@Payload @Valid PaymentDto paymentDto) 
+    public void consume(@Payload @Valid PaymentDto paymentDto)
             throws Exception {
 
-        log.info("Payment request consumed from Kafka topic: payment-request - PaymentId: {}, CustomerId: {}, Amount: {} {}, Operation: payment_request_processing", 
+        log.info("Payment request consumed from Kafka topic: payment-request - PaymentId: {}, CustomerId: {}, Amount: {} {}, Operation: payment_request_processing",
                 paymentDto.getPaymentId(), paymentDto.getCustomerId(), paymentDto.getAmount(), paymentDto.getCurrency());
 
         boolean balanceCheckResult = balanceCheckClient.checkBalance(
@@ -38,14 +38,12 @@ public class PaymentRequestConsumer {
 
         if (balanceCheckResult) {
             paymentExecutionClient.executePayment(paymentDto);
-            log.info("Payment request processed successfully - Status: success, CustomerId: {}, PaymentId: {}", 
+            log.info("Payment request processed successfully - Status: success, CustomerId: {}, PaymentId: {}",
                     paymentDto.getCustomerId(), paymentDto.getPaymentId());
-            // Send success response
             paymentResponseProducer.sendSuccessResponse(paymentDto);
         } else {
-            log.info("Payment request skipped due to insufficient balance - Reason: insufficient_balance, CustomerId: {}, PaymentId: {}", 
+            log.info("Payment request skipped due to insufficient balance - Reason: insufficient_balance, CustomerId: {}, PaymentId: {}",
                     paymentDto.getCustomerId(), paymentDto.getPaymentId());
-            // Send error response for insufficient balance
             paymentResponseProducer.sendErrorResponse(paymentDto, "Insufficient balance for payment");
         }
     }
